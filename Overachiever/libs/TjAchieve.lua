@@ -41,9 +41,6 @@ list = TjAchieve.GetAllCategories()
 list = TjAchieve.GetAchIDs()
   Returns a list of all achievement IDs.
 
-list = TjAchieve.GetGuildAchIDs()
-  Returns a list of all guild achievement IDs.
-
 list = TjAchieve.GetOtherAchIDs()
   Returns a list of all IDs for achievements that aren't of the personal or guild type. For example, those used for hidden tracking. Note that
 there is no "standard" equivalent to this function (like "GetStandardOtherAchIDs()") since such achievements are nonstandard by definition.
@@ -118,9 +115,6 @@ list = TjAchieve.GetStandardAchIDs()
 
 list = TjAchieve.GetStandardPersonalAchIDs()
   Returns a list of IDs for all standard personal (non-guild) achievements.
-
-list = TjAchieve.GetStandardGuildAchIDs()
-  Returns a list of IDs for all standard guild achievements.
 
 bool = TjAchieve.IsAchievementStandard( id )
   Return true if the achievement with the given ID is a standard achievement (per the definition given above).
@@ -396,7 +390,7 @@ local ASSETS = TjAchieve.ASSETS
 function TjAchieve.GetAllCategories()
 	if (not TjAchieve.CATEGORIESLIST) then
 		local list1 = GetCategoryList()
-		local list2 = GetGuildCategoryList()
+		local list2 = {}
 		local thelist = {}
 		TjAchieve.CATEGORIESLIST = thelist
 		local i = 0
@@ -467,10 +461,6 @@ end
 
 function TjAchieve.GetPersonalAchIDs()
 	return getAllAchievements(2, GetCategoryList)
-end
-
-function TjAchieve.GetGuildAchIDs()
-	return getAllAchievements(3, GetGuildCategoryList)
 end
 
 function TjAchieve.GetOtherAchIDs()
@@ -571,14 +561,6 @@ function TjAchieve.GetStandardPersonalAchIDs()
 	return ACH_standard_personal
 end
 
-function TjAchieve.GetStandardGuildAchIDs()
-	if (not ACH_standard_guild) then
-		ACH_standard_guild = {}
-		buildStandardList(TjAchieve.GetGuildAchIDs(), ACH_standard_guild)
-	end
-	return ACH_standard_guild
-end
-
 
 function TjAchieve.IsAchievementStandard(id)
 	if (not TjAchieve.status_ACH) then
@@ -673,7 +655,6 @@ do
 	function idCacheBuildStep()
 		TjAchieve.GetAchIDs()
 		TjAchieve.GetPersonalAchIDs()
-		TjAchieve.GetGuildAchIDs()
 		coroutine.yield()
 
 		-- Determine which achievements currently show in the UI. (We'll listen to the ACHIEVEMENT_EARNED event to update this as needed.)

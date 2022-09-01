@@ -3,8 +3,8 @@ local GetAchievementInfo = GetAchievementInfo
 local GetAchievementCriteriaInfo = Overachiever.GetAchievementCriteriaInfo
 
 
-local isGuildAchievement = Overachiever.IsGuildAchievement
-local isUIInGuildView = Overachiever.isUIInGuildView
+--local isGuildAchievement = Overachiever.IsGuildAchievement
+--local isUIInGuildView = Overachiever.isUIInGuildView
 
 local tabs, tabselected, prevtab
 local LeftFrame
@@ -13,7 +13,7 @@ local varsLoaded, oldver = false
 local function emptyfunc() end
 
 local ACHIEVEMENTUI_FONTHEIGHT
-local In_Guild_View   -- imitation of Blizzard's local IN_GUILD_VIEW
+--local In_Guild_View   -- imitation of Blizzard's local IN_GUILD_VIEW
 
 local GetPreviousAchievement = GetPreviousAchievement
 
@@ -63,25 +63,6 @@ local function getFrameOfButton(button)
   return button:GetParent():GetParent():GetParent()
 end
 
-local function delayedToggleView(self)
-  if (not self) then
-    if (tabselected) then  tabselected:SetScript("OnUpdate", delayedToggleView);  end
-    return;
-  end
-  self:SetScript("OnUpdate", nil)
-  if (self.selection) then
-    if (isGuildAchievement(self.selection)) then
-      if (not isUIInGuildView()) then  AchievementFrame_ToggleView();  end
-    elseif (isUIInGuildView()) then
-      AchievementFrame_ToggleView()
-    end
-  elseif (self.guildView_default) then
-    if (not isUIInGuildView()) then  AchievementFrame_ToggleView();  end
-  elseif (isUIInGuildView()) then
-    AchievementFrame_ToggleView()
-  end
-end
-
 local function clearSelection(frame)
 -- Based on AchievementFrameAchievements_ClearSelection().
   AchievementButton_ResetObjectives();
@@ -99,30 +80,22 @@ local function clearSelection(frame)
   end
 
   frame.selection = nil;
-  if (isUIInGuildView()) then  AchievementFrame_ToggleView();  end
+  --if (isUIInGuildView()) then  AchievementFrame_ToggleView();  end
 end
 
 local function selectButton(button)
-  if (isUIInGuildView()) then
-    if (not isGuildAchievement(button.id)) then
-      AchievementFrame_ToggleView()
-    end
-  elseif (isGuildAchievement(button.id)) then
-    AchievementFrame_ToggleView()
-  end
 -- Based on AchievementFrameAchievements_SelectButton().
   local achievements = getFrameOfButton(button);
 
   achievements.selection = button.id;
   achievements.selectionIndex = button.index;
   button.selected = true;
-  SetFocusedAchievement(button.id)
 end
 
 local function isPreviousAchievementInUI(id)
   id = GetPreviousAchievement(id)
   if (id) then
-    if (isAchievementInUI(id, false)) then  return true;  end
+    if (isAchievementInUI(id)) then  return true;  end
     return isPreviousAchievementInUI(id)
   end
 end
@@ -139,58 +112,58 @@ local function AutoTrackIcon_OnLeave(self)
   GameTooltip:Hide()
 end
 
-local function setButtonGuildView(button, guildView)
--- Based on parts of AchievementFrameAchievements_ToggleView().
-  if (guildView) then
-    if (not button.Oa_guildView) then
-      button.Oa_guildView = true
-	local name = button:GetName();
-	-- reset button info to get proper saturation/desaturation
-	button.completed = nil;
-	button.id = nil;
-	-- title
-	button.titleBar:SetAlpha(1);
-	-- icon frame
-	button.icon.frame:SetTexture("Interface\\AchievementFrame\\UI-Achievement-Guild");
-	button.icon.frame:SetTexCoord(0.25976563, 0.40820313, 0.50000000, 0.64453125);
-	button.icon.frame:SetPoint("CENTER", 2, 2);
-	-- tsunami
-	local tsunami = _G[name.."BottomTsunami1"];
-	tsunami:SetTexture("Interface\\AchievementFrame\\UI-Achievement-Borders");
-	tsunami:SetTexCoord(0, 0.72265, 0.58984375, 0.65234375);
-	tsunami:SetAlpha(0.2);
-	local tsunami = _G[name.."TopTsunami1"];
-	tsunami:SetTexture("Interface\\AchievementFrame\\UI-Achievement-Borders");
-	tsunami:SetTexCoord(0.72265, 0, 0.65234375, 0.58984375);
-	tsunami:SetAlpha(0.15);
-	-- glow
-	button.glow:SetTexCoord(0, 1, 0.26171875, 0.51171875);
-    end
-  elseif (button.Oa_guildView) then
-    button.Oa_guildView = nil
-	local name = button:GetName();
-	-- reset button info to get proper saturation/desaturation
-	button.completed = nil;
-	button.id = nil;
-	-- title
-	button.titleBar:SetAlpha(0.8);
-	-- icon frame
-	button.icon.frame:SetTexture("Interface\\AchievementFrame\\UI-Achievement-IconFrame");
-	button.icon.frame:SetTexCoord(0, 0.5625, 0, 0.5625);
-	button.icon.frame:SetPoint("CENTER", -1, 2);
-	-- tsunami
-	local tsunami = _G[name.."BottomTsunami1"];
-	tsunami:SetTexture("Interface\\AchievementFrame\\UI-Achievement-Borders");
-	tsunami:SetTexCoord(0, 0.72265, 0.51953125, 0.58203125);
-	tsunami:SetAlpha(0.35);
-	local tsunami = _G[name.."TopTsunami1"];
-	tsunami:SetTexture("Interface\\AchievementFrame\\UI-Achievement-Borders");
-	tsunami:SetTexCoord(0.72265, 0, 0.58203125, 0.51953125);
-	tsunami:SetAlpha(0.3);
-	-- glow
-	button.glow:SetTexCoord(0, 1, 0.00390625, 0.25390625);
-  end
-end
+-- local function setButtonGuildView(button, guildView)
+-- -- Based on parts of AchievementFrameAchievements_ToggleView().
+  -- if (guildView) then
+    -- if (not button.Oa_guildView) then
+      -- button.Oa_guildView = true
+	-- local name = button:GetName();
+	-- -- reset button info to get proper saturation/desaturation
+	-- button.completed = nil;
+	-- button.id = nil;
+	-- -- title
+	-- button.titleBar:SetAlpha(1);
+	-- -- icon frame
+	-- button.icon.frame:SetTexture("Interface\\AchievementFrame\\UI-Achievement-Guild");
+	-- button.icon.frame:SetTexCoord(0.25976563, 0.40820313, 0.50000000, 0.64453125);
+	-- button.icon.frame:SetPoint("CENTER", 2, 2);
+	-- -- tsunami
+	-- local tsunami = _G[name.."BottomTsunami1"];
+	-- tsunami:SetTexture("Interface\\AchievementFrame\\UI-Achievement-Borders");
+	-- tsunami:SetTexCoord(0, 0.72265, 0.58984375, 0.65234375);
+	-- tsunami:SetAlpha(0.2);
+	-- local tsunami = _G[name.."TopTsunami1"];
+	-- tsunami:SetTexture("Interface\\AchievementFrame\\UI-Achievement-Borders");
+	-- tsunami:SetTexCoord(0.72265, 0, 0.65234375, 0.58984375);
+	-- tsunami:SetAlpha(0.15);
+	-- -- glow
+	-- button.glow:SetTexCoord(0, 1, 0.26171875, 0.51171875);
+    -- end
+  -- elseif (button.Oa_guildView) then
+    -- button.Oa_guildView = nil
+	-- local name = button:GetName();
+	-- -- reset button info to get proper saturation/desaturation
+	-- button.completed = nil;
+	-- button.id = nil;
+	-- -- title
+	-- button.titleBar:SetAlpha(0.8);
+	-- -- icon frame
+	-- button.icon.frame:SetTexture("Interface\\AchievementFrame\\UI-Achievement-IconFrame");
+	-- button.icon.frame:SetTexCoord(0, 0.5625, 0, 0.5625);
+	-- button.icon.frame:SetPoint("CENTER", -1, 2);
+	-- -- tsunami
+	-- local tsunami = _G[name.."BottomTsunami1"];
+	-- tsunami:SetTexture("Interface\\AchievementFrame\\UI-Achievement-Borders");
+	-- tsunami:SetTexCoord(0, 0.72265, 0.51953125, 0.58203125);
+	-- tsunami:SetAlpha(0.35);
+	-- local tsunami = _G[name.."TopTsunami1"];
+	-- tsunami:SetTexture("Interface\\AchievementFrame\\UI-Achievement-Borders");
+	-- tsunami:SetTexCoord(0.72265, 0, 0.58203125, 0.51953125);
+	-- tsunami:SetAlpha(0.3);
+	-- -- glow
+	-- button.glow:SetTexCoord(0, 1, 0.00390625, 0.25390625);
+  -- end
+-- end
 
 local function displayAchievement(button, frame, achievement, index, selectionID)
 -- This function is based on AchievementButton_DisplayAchievement, with only a few alterations as needed.
@@ -230,17 +203,17 @@ local function displayAchievement(button, frame, achievement, index, selectionID
       end
     end
 
-    local guildach = isGuildAchievement(id)
-    setButtonGuildView(button, guildach)
-    if (In_Guild_View) then
-      if (not guildach) then
-        AchievementFrame_ToggleView()
-        In_Guild_View = nil
-      end
-    elseif (guildach) then
-      AchievementFrame_ToggleView()
-      In_Guild_View = true
-    end
+    --local guildach = isGuildAchievement(id)
+    --setButtonGuildView(button, guildach)
+    --if (In_Guild_View) then
+      -- if (not guildach) then
+        -- AchievementFrame_ToggleView()
+        -- In_Guild_View = nil
+      --end
+    -- elseif (guildach) then
+      -- AchievementFrame_ToggleView()
+      -- In_Guild_View = true
+   -- end
 
     button.id = id;
     button.label:SetWidth(ACHIEVEMENTBUTTON_LABELWIDTH);
@@ -580,14 +553,14 @@ local function updateAchievementsList(frame)
   local extraHeight = scrollFrame.largeButtonHeight or ACHIEVEMENTBUTTON_COLLAPSEDHEIGHT
 
   Overachiever.RecentReminders_Check()
-  In_Guild_View = isUIInGuildView()
+  --In_Guild_View = isUIInGuildView()
   local displayedHeight, index = 0;
   for i = 1, numButtons do
     index = i + offset
     displayAchievement(buttons[i], frame, list[index], index, selection);
     displayedHeight = displayedHeight + buttons[i]:GetHeight();
   end
-  delayedToggleView()
+  --delayedToggleView()
 
   local totalHeight = numAchievements * ACHIEVEMENTBUTTON_COLLAPSEDHEIGHT;
   totalHeight = totalHeight + (extraHeight - ACHIEVEMENTBUTTON_COLLAPSEDHEIGHT);
@@ -768,10 +741,10 @@ local function achbtnOnClick(self, button, ignoreModifiers)
   clearSelection(frame)
   selectButton(self);
   Overachiever.RecentReminders_Check()
-  In_Guild_View = isUIInGuildView()
+ -- In_Guild_View = isUIInGuildView()
   displayAchievement(self, frame, self.id, self.index, self.id)
   HybridScrollFrame_ExpandButton(frame.scrollFrame, ((self.index - 1) * ACHIEVEMENTBUTTON_COLLAPSEDHEIGHT), self:GetHeight());
-  delayedToggleView()
+  --delayedToggleView()
   updateAchievementsList(frame)
 end
 
@@ -779,16 +752,10 @@ local redir_btn_tinsert
 local function post_AchievementButton_OnLoad(self)
   if (redir_btn_tinsert) then
     self:SetScript("OnClick", achbtnOnClick)
-    local shield = _G[self:GetName().."Shield"]
-    shield:SetScript("OnClick", click_parent)
     tinsert(redir_btn_tinsert, self);
-    -- Our button isn't put into this table as of WoW 4.0.1, so this line is unneeded:
-    -- tremove(AchievementFrameAchievementsContainer.buttons);
-
-	-- Add right click feature:
-	self:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-	--shield:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-
+    -- Undo the last addition to the table normally used (we don't want our buttons listed there):
+    tremove(AchievementFrameAchievements.buttons);
+    
     if ( not ACHIEVEMENTUI_FONTHEIGHT ) then
       local _, fontHeight = self.description:GetFont();
       ACHIEVEMENTUI_FONTHEIGHT = fontHeight;
@@ -799,7 +766,7 @@ end
 local function ListFrame_OnShow(self)
   self.panel:Show()
   AchievementFrame_SetFilter( FilterByTab[self] or ACHIEVEMENT_FILTER_ALL, true )
-  delayedToggleView()
+ -- delayedToggleView()
 end
 
 local function ListFrame_OnHide(self)
@@ -1018,16 +985,14 @@ local function LeftFrame_OnShow(self)
   AchievementFrameCategoriesContainer:Hide()
   AchievementFrameCategoriesContainerScrollBar:Hide()
   AchievementFrameFilterDropDown:Show()
-  AchievementFrameHeaderLeftDDLInset:Show()
-  --AchievementFrameHeaderRightDDLInset:Show()
+  AchievementFrameHeaderRightDDLInset:Show()
 end
 
 local function LeftFrame_OnHide(self)
   AchievementFrameCategoriesContainer:Show()
   if (not AchievementFrameAchievements:IsShown()) then
     AchievementFrameFilterDropDown:Hide()
-	AchievementFrameHeaderLeftDDLInset:Hide()
-    --AchievementFrameHeaderRightDDLInset:Hide()
+    AchievementFrameHeaderRightDDLInset:Hide()
   end
   if (not Overachiever.NoAlterSetFilter) then
     AchievementFrame_SetFilter( FilterByTab[AchievementFrameAchievements] or ACHIEVEMENT_FILTER_ALL, true )

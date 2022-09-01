@@ -906,7 +906,7 @@ local function MetaCriteriaOnEnter(self)
     GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT")
     local link = GetAchievementLink(id)
     GameTooltip:SetHyperlink(link)
-    checkGuildMembersTooltip(self)
+    --checkGuildMembersTooltip(self)
     if (GameTooltip:GetBottom() < self:GetTop()) then
       GameTooltip:ClearAllPoints()
       GameTooltip:SetPoint("TOPLEFT", self, "BOTTOMLEFT")
@@ -916,7 +916,7 @@ local function MetaCriteriaOnEnter(self)
   elseif ( self.date ) then
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT");
     GameTooltip:AddLine(string.format(ACHIEVEMENT_META_COMPLETED_DATE, self.date), 1, 1, 1);
-    checkGuildMembersTooltip(self)
+    --checkGuildMembersTooltip(self)
     GameTooltip:Show();
   end
 end
@@ -1188,6 +1188,7 @@ do
   end
 
   function achbtnOnLeave(self)
+    GameTooltip:Hide()
     button = nil
    -- AchievementMeta_OnLeave(self) -- Used because it sets guildMemberRequestFrame, a variable local to Blizzard_AchievementUI.lua,
     -- to nil without doing anything else except GameTooltip:Hide() which we want to do anyway.
@@ -1783,7 +1784,7 @@ else
 
 local function getMapContinents_names()
   local tab = {}
-  local continents = { GetMapContinents() }
+  local continents = {}
   local count = 0
   for i,v in ipairs(continents) do
     if (i % 2 == 0) then -- As of WoW 6.0, only the even numbered results are strings. The rest are integers (IDs for the continents).
