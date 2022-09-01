@@ -396,7 +396,7 @@ local ASSETS = TjAchieve.ASSETS
 function TjAchieve.GetAllCategories()
 	if (not TjAchieve.CATEGORIESLIST) then
 		local list1 = GetCategoryList()
-		-- local list2 = GetGuildCategoryList()
+		local list2 = GetGuildCategoryList()
 		local thelist = {}
 		TjAchieve.CATEGORIESLIST = thelist
 		local i = 0
@@ -404,10 +404,10 @@ function TjAchieve.GetAllCategories()
 			i = i + 1
 			thelist[i] = v
 		end
-		-- for k,v in pairs(list2) do
-			-- i = i + 1
-			-- thelist[i] = v
-		-- end
+		for k,v in pairs(list2) do
+			i = i + 1
+			thelist[i] = v
+		end
 	end
 	return TjAchieve.CATEGORIESLIST
 end

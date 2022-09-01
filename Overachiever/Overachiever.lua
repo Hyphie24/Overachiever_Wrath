@@ -50,20 +50,6 @@ local AlertFrame_PauseOutAnimation = WOW_BFA and AlertFrame_PauseOutAnimation or
 
 local GetAchievementInfo = GetAchievementInfo
 
-local backdropInfo =
- {
-	 bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
- 	 edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
- 	 tile = true,
- 	 tileEdge = true,
- 	 tileSize = 8,
- 	 edgeSize = 8,
- 	 insets = { left = 1, right = 1, top = 1, bottom = 1 },
- }
-
- local frame = CreateFrame("Frame", nil, nil, "BackdropTemplate")
- frame:SetBackdrop(backdropInfo)
-
 -- Overcome problem where GetAchievementCriteriaInfo throws an error if the achievement ID or criteria number is invalid:
 do
   local GAI = GetAchievementCriteriaInfo
@@ -100,11 +86,11 @@ end
 Overachiever.chatprint = chatprint
 
 local function BuildCategoryInfo()
-  Overachiever.UI_GetValidCategories()
   CATEGORY_EXPLOREROOT = GetAchievementCategory(OVERACHIEVER_ACHID.WorldExplorer);
   CATEGORIES_EXPLOREZONES = {};
   local name, parentID
-  for i,id in ipairs(CATEGORIES_ALL) do
+  local CATEGORIES_INDIV_ALL = GetCategoryList()
+  for i,id in ipairs(CATEGORIES_INDIV_ALL) do
     name, parentID = GetCategoryInfo(id)
     if (parentID == CATEGORY_EXPLOREROOT) then
       CATEGORIES_EXPLOREZONES[#(CATEGORIES_EXPLOREZONES) + 1] = id;
@@ -298,67 +284,47 @@ local function getAchievementID(list, argnum, pattern, anyCase)
   end
 end
 
-local searchResults
-local function SearchAchievements(list, argnum, pattern, anyCase)
-  list = list or CATEGORIES_ALL
-  if (type(list) == "table") then
-    -- Reuse table to avoid garbage generation
-    searchResults = searchResults and wipe(searchResults) or {}
-    local tab, anyFound
-    for i,cat in ipairs(list) do
-      tab = getAchievementID_cat(cat, argnum, pattern, anyCase, true)
-      if (tab) then
-        for _,v in ipairs(tab) do
-          searchResults[#(searchResults) + 1] = v;
-          anyFound = true
-        end
+
+--[[
+local isGuildAchievement
+do
+  local GuildCatLookup
+  function isGuildAchievement(id)
+    if (not GuildCatLookup) then
+      GuildCatLookup = {}
+	  local CATEGORIES_GUILD_ALL = GetGuildCategoryList()
+      for i,c in ipairs(CATEGORIES_GUILD_ALL) do
+        GuildCatLookup[c] = true
       end
     end
-    if (anyFound) then
-      return searchResults;
-    end
-  elseif (type(list) == "number") then
-    return getAchievementID_cat(list, argnum, pattern, anyCase, true)
-  elseif (type(list) == "string") then
-    local cat = getCategoryID(list)
-    assert(cat, "Category not found.")
-    return getAchievementID_cat(cat, argnum, pattern, anyCase, true)
+    local cat = GetAchievementCategory(id)
+    return GuildCatLookup[cat]
   end
 end
+--]]
 
-local function SearchAchievements_tab(list, argnum, pattern, anyCase)
-  searchResults = searchResults and wipe(searchResults) or {}
-  local tab, anyFound
-  for k,sublist in pairs(list) do
-    tab = getAchievementID_tab(sublist, argnum, pattern, anyCase, true)
-    if (tab) then
-      for _,v in ipairs(tab) do
-        searchResults[#(searchResults) + 1] = v;
-        anyFound = true
-      end
-    end
-  end
-  if (anyFound) then  return searchResults;  end
-end
+-- local function isGuildAchievement(id)
+	-- local isGuild = select(12, GetAchievementInfo(id))
+	-- return isGuild -- Separate line so we don't also return arguments after the 12th.
+-- end
 
+-- local isUIInGuildView
+-- do
+  -- local fakeframe
+  -- function isUIInGuildView()
+    -- fakeframe = fakeframe or { border = { SetTexture = emptyfunc, SetTexCoord = emptyfunc } }
+    -- AchievementButton_ToggleMetaView(fakeframe)  -- Done so we can find out what their local variable IN_GUILD_VIEW is currently.
+    -- return fakeframe.guildView
+  -- end
+-- end
 
-local function canTrackAchievement(id, allowCompleted)
-  if ( GetNumTrackedAchievements() < WATCHFRAME_MAXACHIEVEMENTS and
-       (allowCompleted or not select(4, GetAchievementInfo(id))) ) then
-    return true
-  end
-end
-
-local function setTracking(id, allowCompleted)
-  if (canTrackAchievement(id, allowCompleted)) then
-    AddTrackedAchievement(id)
-    if (AchievementFrameAchievements_ForceUpdate) then
-      AchievementFrameAchievements_ForceUpdate()
-    end
-    return true
-  end
-end
-
+-- local function checkGuildMembersTooltip(frame)
+  -- if (frame.id and not isGuildAchievement(frame.id)) then  return;  end
+  -- local gv = isUIInGuildView()
+  -- if (not gv) then  AchievementFrame_ToggleView();  end  -- Toggle so we're in guild mode so AchievementFrameAchievements_CheckGuildMembersTooltip will work as desired.
+  -- AchievementFrameAchievements_CheckGuildMembersTooltip(frame)
+  -- if (not gv) then  AchievementFrame_ToggleView();  end
+-- end
 
 
 -- ACHIEVEMENT ID LOOKUP
@@ -369,12 +335,14 @@ do
   local ALL_ACHIEVEMENTS
   function getAllAchievements(catlist)
   -- Retrieve an array of all achievement IDs, including those not normally listed in the UI for this character.
-    if (ALL_ACHIEVEMENTS) then  return ALL_ACHIEVEMENTS;  end
+    catlist = catlist or CATEGORIES_ALL
+    ALL_ACHIEVEMENTS = ALL_ACHIEVEMENTS or {}
+    if (ALL_ACHIEVEMENTS[catlist]) then  return ALL_ACHIEVEMENTS[catlist];  end
     local catlookup = {}
-    for i,c in ipairs(CATEGORIES_ALL) do
+    for i,c in ipairs(catlist) do
       catlookup[c] = true
     end
-    ALL_ACHIEVEMENTS = {}
+    local buildlist = {}
     local gap, i, size, id = 0, 0, 0
     --local debug_largestgap = 0
     repeat
@@ -383,14 +351,15 @@ do
       if (id) then
         --if (gap > debug_largestgap) then debug_largestgap = gap; print("high gap:",debug_largestgap); end
         gap = 0
-        if (catlookup[GetAchievementCategory(id)]) then  size = size + 1; ALL_ACHIEVEMENTS[size] = id;  end
+        if (catlookup[GetAchievementCategory(id)]) then  size = size + 1; buildlist[size] = id;  end
       else
         gap = gap + 1
       end
     until (gap > 1000) -- 1000 is arbitrary. As of this writing, the largest gap is 79, but this is more future-safe.
     --print("last ach ID:",buildlist[size], "/ size:",size)
     catlookup = nil
-    return ALL_ACHIEVEMENTS
+    ALL_ACHIEVEMENTS[catlist] = buildlist
+    return buildlist
   end
 
   --[[
@@ -542,60 +511,93 @@ function Overachiever.GetKillCriteriaLookup(doNotRush)
 	return TjAchieve.ASSETS[TjAchieve.CRITTYPE_KILL]
 end
 
-
+--[===[
 local function BuildCriteriaLookupTab(...)
 -- To be called in this fashion: BuildCriteriaLookupTab( <criteriaType1>, <table1>, <saveCriteriaNumber1>[, <criteriaType2>, <table2>, <saveCriteriaNumber2>[, ...]] )
   local num = select("#", ...)
-  local list = getAllAchievements()
+  local list = getAllAchievements() -- Consider CATEGORIES_INDIV_ALL only?
   local _, critType, assetID, a, tab, savenum
+  local numc, i
+  local GetAchievementCriteriaInfo = GetAchievementCriteriaInfo
   for x,id in ipairs(list) do
-    for i=1,GetAchievementNumCriteria(id) do
+    --for i=1,GetAchievementNumCriteria(id) do
+    numc = GetAchievementNumCriteria(id)
+    i = 1
+    repeat
       _, critType, _, _, _, _, _, assetID = GetAchievementCriteriaInfo(id, i)
+      if (critType and assetID and assetID ~= 0) then
 
-      for arg=1,num,3 do
-        a, tab, savenum = select(arg, ...)
-        if (critType == a) then
-          if (tab[assetID]) then
-            local v = tab[assetID]
-            if (type(v) == "table") then
-              local size = #v
-              v[size+1] = id
-              if (savenum) then  v[size+2] = i;  end
+        for arg=1,num,3 do
+          a, tab, savenum = select(arg, ...)
+          if (critType == a) then
+            if (tab[assetID]) then
+              local v = tab[assetID]
+              if (type(v) == "table") then
+                local size = #v
+                v[size+1] = id
+                if (savenum) then  v[size+2] = i;  end
+              else
+                tab[assetID] = { v, id }  -- Safe to assume savenum isn't true since this wasn't already a table
+              end
             else
-              tab[assetID] = { v, id }  -- Safe to assume savenum isn't true since this wasn't already a table
-            end
-          else
-            if (savenum) then
-              tab[assetID] = { id, i }
-            else
-              tab[assetID] = id
+              if (savenum) then
+                tab[assetID] = { id, i }
+              else
+                tab[assetID] = id
+              end
             end
           end
         end
-      end
 
-    end
+      end
+      i = i + 1
+    until (i > numc or not assetID)
   end
 end
 
 local AchLookup_metaach, AchLookup_kill
-local function BuildCriteriaLookupTab_check()
-  local meta = not AchLookup_metaach and Overachiever_Settings.UI_RequiredForMetaTooltip
+local function BuildCriteriaLookupTab_check(forceMeta)
+  local meta = not AchLookup_metaach and (Overachiever_Settings.UI_RequiredForMetaTooltip or (forceMeta == true))
   local kill = not AchLookup_kill and Overachiever_Settings.CreatureTip_killed
+  if (kill) then
+    AchLookup_kill = OVERACHIEVER_MOB_CRIT -- Use this as the baseline. Build the rest of the lookup table upon it.
+    OVERACHIEVER_MOB_CRIT = nil
+  end
   if (meta and kill) then
-    AchLookup_metaach, AchLookup_kill = {}, {}
+    AchLookup_metaach = {}
+	--AchLookup_kill = {}
     BuildCriteriaLookupTab(8, AchLookup_metaach, nil, 0, AchLookup_kill, true)
     Overachiever.AchLookup_kill = AchLookup_kill
   elseif (meta) then
     AchLookup_metaach = {}
     BuildCriteriaLookupTab(8, AchLookup_metaach)
   elseif (kill) then
-    AchLookup_kill = {}
+    --AchLookup_kill = {}
     BuildCriteriaLookupTab(0, AchLookup_kill, true)
     Overachiever.AchLookup_kill = AchLookup_kill
   end
+  --[[
+  if (kill and OVERACHIEVER_MOB_CRIT) then
+    for mobID,arr in pairs(OVERACHIEVER_MOB_CRIT) do
+	  if (AchLookup_kill[mobID]) then
+	    local v = AchLookup_kill[mobID]
+		local size = #v
+		v[size+1] = arr[1]
+		v[size+2] = arr[2]
+	  else
+		AchLookup_kill[mobID] = { arr[1], arr[2] }
+	  end
+	end
+	OVERACHIEVER_MOB_CRIT = nil
+  end
+  --]]
 end
 
+function Overachiever.GetMetaCriteriaLookup()
+  if (not AchLookup_metaach) then  BuildCriteriaLookupTab_check(true);  end
+  return AchLookup_metaach
+end
+--]===]
 
 
 -- DRAGGABLE FRAMES
@@ -899,10 +901,12 @@ end
 local orig_AchievementButton_GetMeta
 
 local function MetaCriteriaOnEnter(self)
-  if (self.id) then
+  local id = self.id
+  if (id and type(id) == "number" and id > 0) then  -- Extra checks needed for compatibility with addons like Failchievements.
     GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT")
-    local link = GetAchievementLink(self.id)
+    local link = GetAchievementLink(id)
     GameTooltip:SetHyperlink(link)
+    checkGuildMembersTooltip(self)
     if (GameTooltip:GetBottom() < self:GetTop()) then
       GameTooltip:ClearAllPoints()
       GameTooltip:SetPoint("TOPLEFT", self, "BOTTOMLEFT")
@@ -912,6 +916,7 @@ local function MetaCriteriaOnEnter(self)
   elseif ( self.date ) then
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT");
     GameTooltip:AddLine(string.format(ACHIEVEMENT_META_COMPLETED_DATE, self.date), 1, 1, 1);
+    checkGuildMembersTooltip(self)
     GameTooltip:Show();
   end
 end
@@ -935,45 +940,95 @@ do
   local r_inc, g_inc, b_inc = 0.6, 0.6, 0.6
   local temptab
 
-  function AddAchListToTooltip(tooltip, list)
+  function AddAchListToTooltip(tooltip, list, hoverAchID)
     if (type(list) == "table") then
       local _, name, completed, anycomplete
       temptab = temptab or {}
+	  --local notInUI
       for i,ach in ipairs(list) do
         _, name, _, completed = GetAchievementInfo(ach)
+		if (Overachiever_Debug) then  name = name .. " (" .. ach .. ")";  end
         if (completed) then
           anycomplete = true
         else
           completed = false  -- nil becomes false for use in temptab.
         end
+
+		--local alteredName
+		if (Overachiever.GetCachedFactionForData) then
+			local faction = Overachiever.GetCachedFactionForData("meta", hoverAchID, ach)
+			--local currentFaction = UnitFactionGroup("player")
+			--if (faction ~= currentFaction) then
+				if (faction == "Alliance") then
+					name = IconAlliance .. "  " ..name
+					--alteredName = true
+				elseif (faction == "Horde") then
+					name = IconHorde .. "  " ..name
+					--alteredName = true
+				end
+			--end
+		end
+		--[[
+		if (temptab[name] == nil and not alteredName and not isAchievementInUI(ach, true)) then
+			notInUI = notInUI or {}
+			notInUI[name] = true
+		elseif (notInUI and notInUI[name] and isAchievementInUI(ach, true)) then
+			notInUI[name] = false
+		end
+		--]]
+
         temptab[name] = temptab[name] or completed
         -- It being complete takes precedence, since if the name was already used, but this time it's complete,
         -- the previous one must've been for the other faction.
       end
       for name,completed in pairs(temptab) do
+	    --if (notInUI and notInUI[name]) then  name = IconNotReadyX .. " " .. name;  end
         if (completed) then
           tooltip:AddLine(name, r_com, g_com, b_com)
-          tooltip:AddTexture("Interface\\RAIDFRAME\\ReadyCheck-Ready");
+          tooltip:AddTexture("Interface\\RAIDFRAME\\ReadyCheck-Ready")
         else
           tooltip:AddLine(name, 1, 1, 1) --, r_inc, g_inc, b_inc)
           if (anycomplete) then
-            tooltip:AddTexture(""); -- fake texture to push the text over
+            tooltip:AddTexture("") -- fake texture to push the text over
           end
         end
       end
       wipe(temptab)
+
     else
-      local _, name, _, completed = GetAchievementInfo(list)
+	  local ach = list
+      local _, name, _, completed = GetAchievementInfo(ach)
+	  if (Overachiever_Debug) then  name = name .. " (" .. ach .. ")";  end
+
+	  --local alteredName
+	  if (Overachiever.GetCachedFactionForData) then
+		local faction = Overachiever.GetCachedFactionForData("meta", hoverAchID, ach)
+		--local currentFaction = UnitFactionGroup("player")
+		--if (faction ~= currentFaction) then
+			if (faction == "Alliance") then
+			  name = IconAlliance .. " " ..name
+			  --alteredName = true
+			elseif (faction == "Horde") then
+			  name = IconHorde .. " " ..name
+			  --alteredName = true
+			end
+		--end
+	  end
+	  --[[
+	  if (not alteredName and not isAchievementInUI(ach, true)) then
+		name = IconNotReadyX .. " " .. name
+	  end
+	  --]]
       if (completed) then
         tooltip:AddLine(name, r_com, g_com, b_com)
-        tooltip:AddTexture("Interface\\RAIDFRAME\\ReadyCheck-Ready");
+        tooltip:AddTexture("Interface\\RAIDFRAME\\ReadyCheck-Ready")
       else
         tooltip:AddLine(name, 1, 1, 1) --, r_inc, g_inc, b_inc)
       end
     end
   end
 
-    function achbtnOnEnter(self)
+  function achbtnOnEnter(self)
 
 	local f = CreateFrame("Frame", nil, self, BackdropTemplateMixin and "BackdropTemplate")
     local id, tipset, guildtip = self.id, 0
@@ -983,27 +1038,27 @@ do
     f:SetBackdropColor(TOOLTIP_DEFAULT_BACKGROUND_COLOR.r, TOOLTIP_DEFAULT_BACKGROUND_COLOR.g, TOOLTIP_DEFAULT_BACKGROUND_COLOR.b)
 
 	-- This section based on part of AchievementShield_OnEnter:
-	-- if ( self.accountWide ) then
-		-- if ( self.completed ) then
-			-- GameTooltip:AddLine(ACCOUNT_WIDE_ACHIEVEMENT_COMPLETED);
-		-- else
-			-- GameTooltip:AddLine(ACCOUNT_WIDE_ACHIEVEMENT);
-		-- end
-		-- tipset = 1
-		-- GameTooltip:Show();
-	-- end
-	-- local me
-	-- if ( (tipset == 0 or not self.completed) and self.shield.earnedBy ) then
-		-- GameTooltip:AddLine(format(ACHIEVEMENT_EARNED_BY,self.shield.earnedBy));
-		-- me = UnitName("player")
-		-- if ( not self.shield.wasEarnedByMe ) then
-			-- GameTooltip:AddLine(format(ACHIEVEMENT_NOT_COMPLETED_BY, me));
-		-- elseif ( me ~= self.shield.earnedBy ) then
-			-- GameTooltip:AddLine(format(ACHIEVEMENT_COMPLETED_BY, me));
-		-- end
-		-- GameTooltip:Show();
-		-- tipset = 1
-	-- end
+	if ( self.accountWide ) then
+		if ( self.completed ) then
+			GameTooltip:AddLine(ACCOUNT_WIDE_ACHIEVEMENT_COMPLETED);
+		else
+			GameTooltip:AddLine(ACCOUNT_WIDE_ACHIEVEMENT);
+		end
+		tipset = 1
+		GameTooltip:Show();
+	end
+	local me
+	if ( (tipset == 0 or not self.completed) and self.shield.earnedBy ) then
+		GameTooltip:AddLine(format(ACHIEVEMENT_EARNED_BY,self.shield.earnedBy));
+		me = UnitName("player")
+		if ( not self.shield.wasEarnedByMe ) then
+			GameTooltip:AddLine(format(ACHIEVEMENT_NOT_COMPLETED_BY, me));
+		elseif ( me ~= self.shield.earnedBy ) then
+			GameTooltip:AddLine(format(ACHIEVEMENT_COMPLETED_BY, me));
+		end
+		GameTooltip:Show();
+		tipset = 1
+	end
 
 
    -- checkGuildMembersTooltip(self)
@@ -1037,7 +1092,7 @@ do
           GameTooltip:AddLine(name, r_inc, g_inc, b_inc)
         end
         if (completed) then
-		  GameTooltip:AddTexture("Interface\\RAIDFRAME\\ReadyCheck-Ready") -- "Interface\\RAIDFRAME\\ReadyCheck-Ready"
+		  GameTooltip:AddTexture("Interface\\RAIDFRAME\\ReadyCheck-Ready")
           anycomplete = true
         elseif (anycomplete) then
           GameTooltip:AddTexture("") -- fake texture to push the text over
@@ -1101,8 +1156,8 @@ do
       GameTooltip:AddLine(" ")
       for i,critArr in ipairs(reminders) do
 	    if (critArr[2]) then
-		  tooltip:AddLine(name, r_com, g_com, b_com)
-          tooltip:AddTexture("Interface\\RAIDFRAME\\ReadyCheck-Ready");
+		  GameTooltip:AddLine(critArr[1], r_com, g_com, b_com)
+		  GameTooltip:AddTexture(136814) -- "Interface\\RAIDFRAME\\ReadyCheck-Ready"
 		else
 		  GameTooltip:AddLine(critArr[1], 1, 1, 1)
 		  if (anycomplete) then
@@ -1134,7 +1189,7 @@ do
 
   function achbtnOnLeave(self)
     button = nil
-    --AchievementMeta_OnLeave(self) -- Used because it sets guildMemberRequestFrame, a variable local to Blizzard_AchievementUI.lua,
+   -- AchievementMeta_OnLeave(self) -- Used because it sets guildMemberRequestFrame, a variable local to Blizzard_AchievementUI.lua,
     -- to nil without doing anything else except GameTooltip:Hide() which we want to do anyway.
   end
 
@@ -1370,28 +1425,123 @@ function Overachiever.OnEvent(self, event, arg1, ...)
     hooksecurefunc(ItemRefTooltip, "SetHyperlink", Overachiever.ExamineAchievementTip)
     hooksecurefunc(GameTooltip, "SetHyperlink", Overachiever.ExamineAchievementTip)
 
+    local StartTime
+    if (Overachiever_Debug) then  StartTime = debugprofilestop();  end
 
-    Overachiever.BuildItemLookupTab()
+    Overachiever.BuildItemLookupTab(THIS_VERSION)
     Overachiever.BuildItemLookupTab = nil
-    BuildCriteriaLookupTab_check()
 
-  elseif (event == "ZONE_CHANGED_NEW_AREA") then
-    AutoTrackCheck_Explore()
+    if (Overachiever_Debug) then
+      local prev = StartTime
+      StartTime = debugprofilestop()
+      chatprint("Building/retrieving food/drink lookup tables took "..(StartTime - prev)/1000 .." seconds.")
+    end
+
+    BuildCriteriaLookupTab_check()
+    if (Overachiever_Debug) then
+	  local n = string.format("%.0f", (debugprofilestop() - StartTime)/1000)
+      chatprint("BuildCriteriaLookupTab_check() call took "..n.." seconds.")
+    end
+
+	do
+		local status = TjAchieve.BuildIDCache()
+		if (status ~= "complete") then
+			if (not Overachiever_Settings.Throttle_AchLookup) then
+				TjAchieve.RushBuildIDCache()
+				if (Overachiever_Debug) then  chatprint("RushBuildIDCache");  end
+			elseif (Overachiever_Debug) then
+				chatprint("BuildIDCache")
+				TjAchieve.AddBuildIDCacheListener(function()
+					chatprint("BuildIDCache: complete")
+				end)
+			end
+		end
+	end
+
+	if (toast) then
+	  C_Timer.After(0, function()
+	    -- This strange double-timer thing works around an issue where the timer starts counting down, so to speak, during the loading screen if the UI is being reloaded (as per /reload), making the toast not appear.
+	    C_Timer.After(4, function()
+	      Overachiever.ToastFakeAchievement(toast, nil, false, msg, 15, nil, function()  openOptions();  end)
+	    end)
+	  end)
+	end
+
+	OpenCalendar() -- We need calendar data to be available later (not just for toasts, but also holiday notices on achievement GUI), so we request it now. (Needed if some other addon doesn't do this.)
+	-- You might think we'd want to watch for event CALENDAR_UPDATE_EVENT_LIST after this, but it's not reliably called. Some report you need to call another function like CalendarSetAbsMonth beforehand for it to work,
+	-- but how we're doing it, we don't seem to need to do that or use that event at all.
+
+	local OS = Overachiever_Settings
+	if (OS.ToastCalendar_holiday or OS.ToastCalendar_microholiday or OS.ToastCalendar_bonusevent or OS.ToastCalendar_dungeonevent or
+	    OS.ToastCalendar_pvpbrawl or OS.ToastCalendar_misc) then
+	  C_Timer.After(0, function()
+	    -- This strange double-timer thing works around an issue where the timer starts counting down, so to speak, during the loading screen if the UI is being reloaded (as per /reload), making the toast not appear.
+		C_Timer.After(5, function()
+		  Overachiever.ToastForEvents(OS.ToastCalendar_holiday, OS.ToastCalendar_microholiday, OS.ToastCalendar_bonusevent,
+		                              OS.ToastCalendar_dungeonevent, OS.ToastCalendar_pvpbrawl, OS.ToastCalendar_misc)
+		end)
+	  end)
+	  --[[
+      Overachiever.MainFrame:RegisterEvent("CALENDAR_UPDATE_EVENT_LIST")
+	  --if (not IsAddOnLoaded("Blizzard_Calendar")) then  UIParentLoadAddOn("Blizzard_Calendar");  end
+      OpenCalendar()
+	  --]]
+	end
+
+  --[[
+  elseif (event == "CALENDAR_UPDATE_EVENT_LIST") then
+    Overachiever.MainFrame:UnregisterEvent("CALENDAR_UPDATE_EVENT_LIST")
+	--Overachiever.MainFrame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+	--Overachiever.MainFrame:RegisterEvent("PET_JOURNAL_LIST_UPDATE")
+	C_Timer.After(0, function()
+	  -- This strange double-timer thing works around an issue where the timer starts counting down, so to speak, during the loading screen if the UI is being reloaded (as per /reload), making the toast not appear.
+	  C_Timer.After(5, function()
+		Overachiever.ToastForEvents(Overachiever_Settings.ToastCalendar_holiday, Overachiever_Settings.ToastCalendar_microholiday, Overachiever_Settings.ToastCalendar_bonusevent, Overachiever_Settings.ToastCalendar_dungeonevent)
+	  end)
+	end)
+  --]] --[[
+  elseif (event == "COMBAT_LOG_EVENT_UNFILTERED") then
+	Overachiever.MainFrame:UnregisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+	C_Timer.After(8, function()
+	  Overachiever.ToastForEvents(Overachiever_Settings.ToastCalendar_holiday, Overachiever_Settings.ToastCalendar_microholiday, Overachiever_Settings.ToastCalendar_bonusevent, Overachiever_Settings.ToastCalendar_dungeonevent)
+	end)
+  --]]
 
   elseif (event == "TRACKED_ACHIEVEMENT_UPDATE") then
-    local criteriaID, elapsed, duration = ...
-    if (duration and elapsed < duration) then
-      Overachiever.RecentReminders[arg1] = time()
-      if (Overachiever_Settings.Tracker_AutoTimer and
-          not setTracking(arg1) and AutoTrackedAch_explore and IsTrackedAchievement(AutoTrackedAch_explore)) then
-        -- If failed to track this, remove an exploration achievement that was auto-tracked and try again:
-        RemoveTrackedAchievement(AutoTrackedAch_explore)
-        if (not setTracking(arg1)) then
-          -- If still didn't successfully track new achievement, track previous achievement again:
-          AddTrackedAchievement(AutoTrackedAch_explore)
-        end
+    --print("*****", event, arg1, select(2, GetAchievementInfo(arg1)), "*****")
+    if (arg1 and arg1 > 0) then  -- Attempt to work around an apparent WoW bug. May prevent errors but if the given ID is 0, we have no way of knowing what the achievement really was so we can't track it (unless there's another call with the correct data).
+      local criteriaID, elapsed, duration = ...
+	  --print("criteriaID, elapsed, duration",criteriaID, elapsed, duration)
+      if (elapsed and duration and elapsed < duration) then
+  	    local canTrack, isBGTimer
+        local pvpMap = OVERACHIEVER_BGTIMERID[arg1]
+        local pvpMap2 = OVERACHIEVER_BGTIMERID_RATED[arg1]
+  	    if (pvpMap or pvpMap2) then -- If this is one of the battleground timers, then we have to treat it a special way because there is a Blizzard bug that makes this event trigger for achievements for OTHER battlegrounds:
+    		  local _, instanceType, _, _, _, _, _, instanceMapID = GetInstanceInfo()
+    		  --print("instanceMapID",instanceMapID)
+    		  if (instanceType == "pvp" and (pvpMap == true or (instanceMapID and (instanceMapID == pvpMap or instanceMapID == pvpMap2)))) then
+    		    Overachiever.FlagReminder(arg1)
+      			canTrack = Overachiever_Settings.Tracker_AutoTimer_BG
+      			if (canTrack) then  isBGTimer = true;  end
+      		else
+    		    canTrack = false
+    		  end
+    		elseif (pvpMap == false) then
+    		  canTrack = false
+    		else
+    		  Overachiever.FlagReminder(arg1)
+    		  canTrack = Overachiever_Settings.Tracker_AutoTimer
+    		end
+    		--print("canTrack",canTrack)
+
+    		if (canTrack) then
+          Overachiever.TrackTimedAchievement(arg1, isBGTimer)
+    		end
       end
-    end
+  	end
+
+  elseif (event == "CRITERIA_EARNED") then
+    ReactToCriteriaToast(arg1, ...)
 
   elseif (event == "ADDON_LOADED" and arg1 == "Blizzard_AchievementUI") then
     Overachiever.MainFrame:UnregisterEvent("ADDON_LOADED")
@@ -1399,22 +1549,27 @@ function Overachiever.OnEvent(self, event, arg1, ...)
     orig_AchievementButton_GetMeta = AchievementButton_GetMeta
     AchievementButton_GetMeta = new_AchievementButton_GetMeta
     -- Add "series" tooltip to default achievement buttons:
-    Overachiever.UI_HookAchButtons(AchievementFrameAchievements.buttons, AchievementFrameAchievementsContainerScrollBar)
-    -- Allow closing frame with Escape even when UIPanelLayout-enabled is set to false:
+    Overachiever.UI_HookAchButtons(AchievementFrameAchievementsContainer.buttons, AchievementFrameAchievementsContainerScrollBar)
+    -- Allow closing frame with Escape even when UIPanelLayout-area is nil:
     tinsert(UISpecialFrames, "AchievementFrame");
 
     -- Make main achievement UI draggable:
-    -- - Prevent UIParent.lua from seeing area field (or it'll do things that mess up making the frame draggable).
-    orig_AchievementFrame_area = UIPanelWindows["AchievementFrame"].area
-    UIPanelWindows["AchievementFrame"].area = nil
-    -- - Hook the first OnShow call to complete this. (Not done now in case saved variables aren't ready or the frame
+    -- - Prevent UIParent.lua from seeing area field (or it'll do things that mess up making the frame draggable, at least when you want the position to be saved: it snaps to another position when another panel, e.g. Character, opens).
+    if (UIPanelWindows["AchievementFrame"]) then  -- This if statement prevents error messages when the addon MoveAnything is used to move AchievementFrame.
+      orig_AchievementFrame_area = UIPanelWindows["AchievementFrame"].area
+      UIPanelWindows["AchievementFrame"].area = nil
+    end
+    -- - Hook the first OnShow call to complete this. (Function not called now in case saved variables aren't ready or the frame
     --   isn't showing right away.)
-    orig_AchievementFrame_OnShow = AchievementFrame:GetScript("OnShow")
-    AchievementFrame:SetScript("OnShow", AchievementUI_FirstShown)
-    --[[ Pre-3.1 method:
-    orig_AchievementFrame_OnShow = AchievementFrame_OnShow
-    AchievementFrame_OnShow = AchievementUI_FirstShown
-    --]]
+    AchievementFrame:HookScript("OnShow", AchievementUI_OnShow_post)
+
+    -- Make the default UI's "Achievement Filter" dropdown respond to clicks anywhere instead of only on the down-arrow button:
+    --AchievementFrameFilterDropDownButton:SetWidth( AchievementFrameFilterDropDown:GetWidth() )
+    if (AchievementFrameFilterDropDownButton and AchievementFrameFilterDropDownMouseOver) then -- failsafe
+      AchievementFrameFilterDropDownButton:SetWidth(AchievementFrameFilterDropDownButton:GetHeight())
+      AchievementFrameFilterDropDownButton:HookScript("OnEnter", AchievementFrameFilterDropDownMouseOver:GetScript("OnEnter"))
+      AchievementFrameFilterDropDownButton:HookScript("OnLeave", AchievementFrameFilterDropDownMouseOver:GetScript("OnLeave"))
+    end
 
   elseif (event == "PLAYER_LOGOUT") then
     if (Overachiever_CharVars.Pos_AchievementFrame) then
@@ -1422,6 +1577,7 @@ function Overachiever.OnEvent(self, event, arg1, ...)
       Overachiever_CharVars_Default = Overachiever_CharVars_Default or {}
       Overachiever_CharVars_Default.Pos_AchievementFrame = Overachiever_CharVars.Pos_AchievementFrame
     end
+
    --[[  No longer necessary as this is now done by WoW itself:
     -- Remember tracked achievements:
     local num = GetNumTrackedAchievements()
@@ -1436,66 +1592,9 @@ function Overachiever.OnEvent(self, event, arg1, ...)
     end
    --]]
 
-  end
-end
+  --else
+    --chatprint(event)
 
-function Overachiever.SearchForAchievement(isCustomList, searchList, argnum, msg, toChat, givelist, retTable)
--- If isCustomList is false (or nil), searchList should either be nil or an array of achievement category ID numbers.
--- If isCustomList is true, searchList should be an array of achievement ID numbers.
--- If isCustomList is 2, searchList should be a table containing such arrays.
-  if (not searchList) then  isCustomList = nil;  end
-  if (not givelist and not toChat) then
-    if (isCustomList) then
-      if (isCustomList == 2) then
-        local id
-        for k,sublist in pairs(searchList) do
-          id = getAchievementID_tab(sublist, argnum, msg, true)
-          if (id) then  return id;  end
-        end
-        return;
-      else
-        return getAchievementID_tab(searchList, argnum, msg, true)
-      end
-    else
-      return getAchievementID(searchList, argnum, msg, true)
-    end
-  end
-  local tab
-  if (isCustomList) then
-    if (isCustomList == 2) then
-      tab = SearchAchievements_tab(searchList, argnum, msg, true)
-    else
-      tab = getAchievementID_tab(searchList, argnum, msg, true, true)
-    end
-  else
-    tab = SearchAchievements(searchList, argnum, msg, true)
-  end
-  if (tab) then
-    local id = tab[1]
-    if (toChat) then  chatprint(L.MSG_OPENINGTO..GetAchievementLink(id));  end
-    local tab2
-    if (givelist) then
-      tab2 = type(retTable) == "table" and wipe(retTable) or {}
-      copytab(tab, tab2)
-      if (not toChat) then  return tab2;  end
-    end
-    local size = #(tab)
-    if (size == 2) then
-      chatprint(L.MSG_ONEFOUND..GetAchievementLink(tab[2]))
-    elseif (size > 2) then
-      chatprint(L.MSG_NUMFOUNDLIST:format(size-1))
-      local a, b, c
-      for i=2,size,3 do
-        a, b, c = tab[i], tab[i+1], tab[i+2]
-        a, b, c = GetAchievementLink(a), b and GetAchievementLink(b), c and GetAchievementLink(c)
-        if (b) then  a = a.."  --  "..b;  end
-        if (c) then  a = a.."  --  "..c;  end
-        chatprint(a, "-- ")
-      end
-    end
-    return tab2 or id
-  elseif (toChat) then
-    chatprint(L.MSG_NAMENOTFOUND:format(msg))
   end
 end
 
@@ -1538,13 +1637,11 @@ function Overachiever.UI_HookAchButtons(buttons, scrollbar)
   for i,button in ipairs(buttons) do
     button:HookScript("OnEnter", achbtnOnEnter)
     button:HookScript("OnLeave", achbtnOnLeave)
+    local shield = _G[button:GetName().."Shield"]
+    --shield:SetScript("OnEnter", achbtnShieldOnEnter)
+    shield:EnableMouse(false) -- Removes its tie to AchievementShield_OnEnter and lets the parent button control highlighting, etc.
   end
   scrollbar:HookScript("OnValueChanged", achBtnRedisplay)
-end
-
-function Overachiever.UI_GetValidCategories()
-  CATEGORIES_ALL = CATEGORIES_ALL or GetCategoryList()
-  return CATEGORIES_ALL
 end
 
 Overachiever.IsAchievementInUI = isAchievementInUI;
@@ -1666,79 +1763,79 @@ SlashCmdList["Overachiever_silentAch"] = function(msg, self)  slashHandler(msg, 
 SlashCmdList["ACHIEVEMENTUI"] = slashHandler;
 
 
--- -- MAPS AND ZONES
--- --------------------------
+-- MAPS AND ZONES
+--------------------------
 
--- function Overachiever.GetContinents()
-	-- return C_Map.GetMapChildrenInfo(COSMIC_MAP_ID, Enum.UIMapType.Continent, true)
--- end
+function Overachiever.GetContinents()
+	return C_Map.GetMapChildrenInfo(COSMIC_MAP_ID, Enum.UIMapType.Continent, true)
+end
 
--- if (WOW_BFA) then
--- ----- BFA:
+if (WOW_BFA) then
+----- BFA:
 
--- function Overachiever.GetZones(parentMapID)
-	-- return C_Map.GetMapChildrenInfo(parentMapID or COSMIC_MAP_ID, Enum.UIMapType.Zone, true)
--- end
+function Overachiever.GetZones(parentMapID)
+	return C_Map.GetMapChildrenInfo(parentMapID or COSMIC_MAP_ID, Enum.UIMapType.Zone, true)
+end
 
--- ----- :BFA
--- else
--- ----- Legion:
+----- :BFA
+else
+----- Legion:
 
--- local function getMapContinents_names()
-  -- local tab = {}
-  -- local continents = { GetMapContinents() }
-  -- local count = 0
-  -- for i,v in ipairs(continents) do
-    -- if (i % 2 == 0) then -- As of WoW 6.0, only the even numbered results are strings. The rest are integers (IDs for the continents).
-      -- count = count + 1
-      -- tab[count] = continents[i];
-    -- end
-  -- end
-  -- return tab
--- end
+local function getMapContinents_names()
+  local tab = {}
+  local continents = { GetMapContinents() }
+  local count = 0
+  for i,v in ipairs(continents) do
+    if (i % 2 == 0) then -- As of WoW 6.0, only the even numbered results are strings. The rest are integers (IDs for the continents).
+      count = count + 1
+      tab[count] = continents[i];
+    end
+  end
+  return tab
+end
 
--- local function getMapZones_names(index)
-  -- local tab = {}
-  -- local zones = { GetMapZones(index) }
-  -- local count = 0
-  -- for i,v in ipairs(zones) do
-    -- if (i % 2 == 0) then -- As of WoW 6.0, only the even numbered results are strings. The rest are integers (IDs for the continents).
-      -- count = count + 1
-      -- tab[count] = zones[i];
-    -- end
-  -- end
-  -- return tab
--- end
+local function getMapZones_names(index)
+  local tab = {}
+  local zones = { GetMapZones(index) }
+  local count = 0
+  for i,v in ipairs(zones) do
+    if (i % 2 == 0) then -- As of WoW 6.0, only the even numbered results are strings. The rest are integers (IDs for the continents).
+      count = count + 1
+      tab[count] = zones[i];
+    end
+  end
+  return tab
+end
 
--- function Overachiever.GetZones()
-	-- local zones = {}
-	-- local continents = getMapContinents_names()
-	-- local num = 0
-	-- for i,cname in pairs(continents) do
-		-- local zones_continent = getMapZones_names(i)
-		-- for k,v in pairs(zones_continent) do
-			-- num = num + 1
-			-- zones[num] = v
-		-- end
-	-- end
-	-- return zones
--- end
+function Overachiever.GetZones()
+	local zones = {}
+	local continents = getMapContinents_names()
+	local num = 0
+	for i,cname in pairs(continents) do
+		local zones_continent = getMapZones_names(i)
+		for k,v in pairs(zones_continent) do
+			num = num + 1
+			zones[num] = v
+		end
+	end
+	return zones
+end
 
--- ----- :Legion
--- end
+----- :Legion
+end
 
--- function Overachiever.GetDungeons(parentMapID)
-	-- return C_Map.GetMapChildrenInfo(parentMapID or COSMIC_MAP_ID, Enum.UIMapType.Dungeon, true)
--- end
+function Overachiever.GetDungeons(parentMapID)
+	return C_Map.GetMapChildrenInfo(parentMapID or COSMIC_MAP_ID, Enum.UIMapType.Dungeon, true)
+end
 
--- function Overachiever.GetParentZone(mapID)
-	-- -- Get the map ID of the parent zone for a map, e.g. Elwynn Forest's ID if given Northshire's ID. Limited to giving zones' IDs, not continents', so if given
-	-- -- Elwynn Forest's ID, it returns nil.
-	-- --if (not mapID) then  mapID = MapUtil.GetDisplayableMapForPlayer();  end
-	-- if (not mapID) then  mapID = C_Map.GetBestMapForUnit("player");  end
-	-- local parent = MapUtil.GetMapParentInfo(mapID, Enum.UIMapType.Zone, true)
-	-- return parent and parent.mapID ~= mapID and parent or nil
--- end
+function Overachiever.GetParentZone(mapID)
+	-- Get the map ID of the parent zone for a map, e.g. Elwynn Forest's ID if given Northshire's ID. Limited to giving zones' IDs, not continents', so if given
+	-- Elwynn Forest's ID, it returns nil.
+	--if (not mapID) then  mapID = MapUtil.GetDisplayableMapForPlayer();  end
+	if (not mapID) then  mapID = C_Map.GetBestMapForUnit("player");  end
+	local parent = MapUtil.GetMapParentInfo(mapID, Enum.UIMapType.Zone, true)
+	return parent and parent.mapID ~= mapID and parent or nil
+end
 
 
 
@@ -1748,9 +1845,10 @@ SlashCmdList["ACHIEVEMENTUI"] = slashHandler;
 if (Overachiever_Debug) then
 
   function Overachiever.Debug_GetKillCriteriaAchs()
-    if (not Overachiever.AchLookup_kill) then  return;  end
+    local data = Overachiever.GetKillCriteriaLookup()
+    if (not data) then  return;  end
     local tab, _, a = {}
-    for k,v in pairs(Overachiever.AchLookup_kill) do
+    for k,v in pairs(data) do
       for i = 1, #v, 2 do
         _, a = GetAchievementInfo( v[i] )
         tab[a] = (tab[a] or 0) + 1
@@ -1758,7 +1856,6 @@ if (Overachiever_Debug) then
     end
     return tab
   end
-
 
   -- Achievement and criteria data gathering:
 
@@ -1851,7 +1948,50 @@ Overachiever.MainFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 Overachiever.MainFrame:RegisterEvent("ADDON_LOADED")
 --Overachiever.MainFrame:RegisterEvent("ACHIEVEMENT_EARNED")
 Overachiever.MainFrame:RegisterEvent("TRACKED_ACHIEVEMENT_UPDATE")
+Overachiever.MainFrame:RegisterEvent("CRITERIA_EARNED")
 Overachiever.MainFrame:RegisterEvent("PLAYER_LOGOUT")
 
 Overachiever.MainFrame:SetScript("OnEvent", Overachiever.OnEvent)
-Overachiever.MainFrame:SetScript("OnUpdate", AchievementUI_FirstShown_post)
+
+--Overachiever.MainFrame:RegisterEvent("PLAYER_LOGIN")
+
+
+
+
+--[[
+-- /run Overachiever.ListCompletedAchievements()
+function Overachiever.ListCompletedAchievements()
+	local achs = Overachiever.GetAllAchievements()
+	local list, num = {}, 0
+	for i,id in ipairs(achs) do
+		local id, name, points, completed = GetAchievementInfo(id)
+		if (completed) then
+			num = num + 1
+			list[num] = id
+		end
+	end
+	C_Timer.After(0, function()
+		local s = ""
+		for i,id in ipairs(list) do
+			s = s .. id .. "\r\n"
+		end
+		error(s)
+	end)
+	return list
+end
+--]]
+
+
+--[[ obsolete?
+getAchievementID
+getCategoryID
+CATEGORIES_INDIV_ALL, CATEGORIES_GUILD_ALL, CATEGORIES_ALL
+BuildCategoryInfo
+
+Overachiever.UI_GetValidCategories
+
+GetAllAchievements
+Overachiever.GetAllAchievements
+
+isGuildAchievement
+--]]
