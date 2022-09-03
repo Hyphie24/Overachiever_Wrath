@@ -303,28 +303,28 @@ do
 end
 --]]
 
--- local function isGuildAchievement(id)
-	-- local isGuild = select(12, GetAchievementInfo(id))
-	-- return isGuild -- Separate line so we don't also return arguments after the 12th.
--- end
+local function isGuildAchievement(id)
+	 local isGuild = select(12, GetAchievementInfo(id))
+	 return isGuild -- Separate line so we don't also return arguments after the 12th.
+ end
 
--- local isUIInGuildView
--- do
-  -- local fakeframe
-  -- function isUIInGuildView()
-    -- fakeframe = fakeframe or { border = { SetTexture = emptyfunc, SetTexCoord = emptyfunc } }
-    -- AchievementButton_ToggleMetaView(fakeframe)  -- Done so we can find out what their local variable IN_GUILD_VIEW is currently.
-    -- return fakeframe.guildView
-  -- end
--- end
+ local isUIInGuildView
+ do
+   local fakeframe
+   function isUIInGuildView()
+     fakeframe = fakeframe or { border = { SetTexture = emptyfunc, SetTexCoord = emptyfunc } }
+     AchievementButton_ToggleMetaView(fakeframe)  -- Done so we can find out what their local variable IN_GUILD_VIEW is currently.
+     return fakeframe.guildView
+   end
+ end
 
--- local function checkGuildMembersTooltip(frame)
-  -- if (frame.id and not isGuildAchievement(frame.id)) then  return;  end
-  -- local gv = isUIInGuildView()
-  -- if (not gv) then  AchievementFrame_ToggleView();  end  -- Toggle so we're in guild mode so AchievementFrameAchievements_CheckGuildMembersTooltip will work as desired.
-  -- AchievementFrameAchievements_CheckGuildMembersTooltip(frame)
-  -- if (not gv) then  AchievementFrame_ToggleView();  end
--- end
+ local function checkGuildMembersTooltip(frame)
+   if (frame.id and not isGuildAchievement(frame.id)) then  return;  end
+   local gv = isUIInGuildView()
+   if (not gv) then  AchievementFrame_ToggleView();  end  -- Toggle so we're in guild mode so AchievementFrameAchievements_CheckGuildMembersTooltip will work as desired.
+   AchievementFrameAchievements_CheckGuildMembersTooltip(frame)
+   if (not gv) then  AchievementFrame_ToggleView();  end
+ end
 
 
 -- ACHIEVEMENT ID LOOKUP
@@ -894,6 +894,9 @@ local function AutoTrackCheck_Explore(noClearing)
   end
 end
 
+--TEST_ReactToCriteriaToast = ReactToCriteriaToast
+--/dump TEST_ReactToCriteriaToast(12510, "A Golden Opportunity")															
+
 
 -- META-CRITERIA TOOLTIP
 --------------------------
@@ -1188,7 +1191,7 @@ do
   end
 
   function achbtnOnLeave(self)
-    GameTooltip:Hide()
+    
     button = nil
    -- AchievementMeta_OnLeave(self) -- Used because it sets guildMemberRequestFrame, a variable local to Blizzard_AchievementUI.lua,
     -- to nil without doing anything else except GameTooltip:Hide() which we want to do anyway.
@@ -1338,7 +1341,7 @@ end
 -----------------------
 
 function Overachiever.OnEvent(self, event, arg1, ...)
-  --print("[Oa]", event, arg1, ...)
+--print("[Oa]", event, arg1, ...)
   if (event == "CRITERIA_UPDATE") then
     -- Both of these are used by GameTip.lua
     Overachiever.Criteria_Updated = true
@@ -1347,7 +1350,6 @@ function Overachiever.OnEvent(self, event, arg1, ...)
   elseif (event == "PLAYER_ENTERING_WORLD") then
     Overachiever.MainFrame:UnregisterEvent("PLAYER_ENTERING_WORLD")
     Overachiever.MainFrame:RegisterEvent("CRITERIA_UPDATE") -- used by GameTip.lua
-
     BuildCategoryInfo()
     BuildCategoryInfo = nil
 
@@ -1648,10 +1650,10 @@ end
 Overachiever.IsAchievementInUI = isAchievementInUI;
 Overachiever.OpenToAchievement = openToAchievement;
 Overachiever.GetAllAchievements = getAllAchievements;
-Overachiever.BuildCriteriaLookupTab = BuildCriteriaLookupTab;
+--Overachiever.BuildCriteriaLookupTab = BuildCriteriaLookupTab;
 Overachiever.AddAchListToTooltip = AddAchListToTooltip;
--- Overachiever.IsGuildAchievement = isGuildAchievement
--- Overachiever.isUIInGuildView = isUIInGuildView
+ Overachiever.IsGuildAchievement = isGuildAchievement
+ Overachiever.isUIInGuildView = isUIInGuildView
 
 
 -- SLASH COMMANDS
@@ -1943,7 +1945,20 @@ end
 -- FRAME INITIALIZATION
 --------------------------
 
+Overachiever.MainFrame = CreateFrame("Frame")
+Overachiever.MainFrame:Hide()
+Overachiever.MainFrame:RegisterEvent("ADDON_LOADED")
+Overachiever.MainFrame:RegisterEvent("PLAYER_LOGIN")
+Overachiever.MainFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+Overachiever.MainFrame:RegisterEvent("ACHIEVEMENT_EARNED")
+Overachiever.MainFrame:RegisterEvent("TRACKED_ACHIEVEMENT_UPDATE")
+Overachiever.MainFrame:RegisterEvent("CRITERIA_EARNED")
+Overachiever.MainFrame:RegisterEvent("PLAYER_LOGOUT")
 
+Overachiever.MainFrame:SetScript("OnEvent", Overachiever.OnEvent)
+Overachiever.MainFrame:SetScript("OnUpdate", AchievementUI_FirstShown_post)
+
+--[[
 Overachiever.MainFrame = CreateFrame("Frame")
 Overachiever.MainFrame:Hide()
 Overachiever.MainFrame:RegisterEvent("ADDON_LOADED")
@@ -1956,7 +1971,7 @@ Overachiever.MainFrame:RegisterEvent("PLAYER_LOGOUT")
 
 Overachiever.MainFrame:SetScript("OnEvent", Overachiever.OnEvent)
 
-
+--]]
 
 
 --[[
