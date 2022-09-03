@@ -30,8 +30,8 @@ local function getList(excludeHidden, achType)
 	if (excludeHidden) then
 		if (achType == "p") then
 			return TjAchieve.GetStandardPersonalAchIDs()
-		elseif (achType == "g") then
-			return TjAchieve.GetStandardGuildAchIDs()
+		-- elseif (achType == "g") then
+			-- return TjAchieve.GetStandardGuildAchIDs()
 		elseif (achType == "o") then
 			return {}
 		else
@@ -40,8 +40,8 @@ local function getList(excludeHidden, achType)
 	else
 		if (achType == "p") then
 			return TjAchieve.GetPersonalAchIDs()
-		elseif (achType == "g") then
-			return TjAchieve.GetGuildAchIDs()
+		-- elseif (achType == "g") then
+			-- return TjAchieve.GetGuildAchIDs()
 		elseif (achType == "o") then
 			return TjAchieve.GetOtherAchIDs()
 		else

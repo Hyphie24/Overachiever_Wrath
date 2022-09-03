@@ -19,6 +19,94 @@ local searchInProgress = false
 -- Set this to "true" (without quotes) to make Search tab edit boxes lose their input focus when a search begins.
 local OPTION_LoseFocusOnSearch = false
 
+local function copytab(from, to)
+  for k,v in pairs(from) do
+    if(type(v) == "table") then
+      to[k] = {}
+      copytab(v, to[k]);
+    else
+      to[k] = v;
+    end
+  end
+end
+
+local AchSearch = Overachiever.SearchForAchievement
+
+local function findCriteria(id, pattern)
+  local critString, foundCrit
+  for i=1,GetAchievementNumCriteria(id) do
+    critString = GetAchievementCriteriaInfo(id, i)
+    foundCrit = strfind(strlower(critString), pattern, 1, true)
+    if (foundCrit) then  return true;  end
+  end
+end
+
+local found
+
+local function AchSearch_Criteria(list, pattern, results)
+  pattern = strlower(pattern)
+  found = found and wipe(found) or {}
+  local anyFound
+  if (list) then
+    for i,id in ipairs(list) do
+      if (findCriteria(id, pattern)) then
+        found[#found+1] = id
+        anyFound = true
+      end
+    end
+  else
+    local id
+    for _,cat in ipairs(CATEGORIES_ALL) do
+      for i=1,GetCategoryNumAchievements(cat) do
+        id = GetAchievementInfo(cat, i)
+        if (findCriteria(id, pattern)) then
+          found[#found+1] = id
+          anyFound = true
+        end
+      end
+    end
+  end
+  if (anyFound) then
+    if (results ~= found) then
+      results = results and wipe(results) or {}
+      copytab(found, results)
+    end
+    return results
+  end
+end
+
+local multifound
+
+local function AchSearch_multiple(list, pattern, results, ...)
+  found = found or {}
+  multifound = multifound and wipe(multifound) or {}
+  local anyFound, argnum, foundB
+  for i=1, select("#", ...) do
+    argnum = select(i, ...)
+    foundB = AchSearch(true, list, argnum, pattern, nil, true, found)
+    if (foundB) then  -- Theoretically faster than checking if #(found) < 1.
+      for _,id in ipairs(found) do
+        multifound[id] = true  -- With this method, we won't get duplicate IDs.
+      end
+      anyFound = true
+    end
+  end
+  foundB = AchSearch_Criteria(list, pattern, found)
+  if (foundB) then
+    for _,id in ipairs(found) do
+      multifound[id] = true
+    end
+    anyFound = true
+  end
+  if (anyFound) then
+    results = results and wipe(results) or {}
+    for id in pairs(multifound) do  -- pairs, not ipairs
+      results[#results+1] = id
+    end
+    return results
+  end
+end
+
 
 local VARS
 local frame, panel, sortdrop
@@ -210,12 +298,8 @@ typedrop = TjDropDownMenu.CreateDropDown("Overachiever_SearchFrameTypeDrop", pan
     value = 1
   },
   {
-    text = L.SEARCH_TYPE_GUILD,
-    value = 2
-  },
-  {
     text = L.SEARCH_TYPE_OTHER,
-    value = 3
+    value = 2
   };
 })
 typedrop:SetLabel(L.SEARCH_TYPE, true)

@@ -42,9 +42,9 @@ local THROTTLE_ACHLOOKUP = true
 --]]
 
 -- BFA
-local WOW_BFA = select(4, GetBuildInfo()) >= 80000
+--local WOW_BFA = select(4, GetBuildInfo()) >= 80000
 local OpenCalendar = OpenCalendar or C_Calendar.OpenCalendar
-local AlertFrame_PauseOutAnimation = WOW_BFA and AlertFrame_PauseOutAnimation or AlertFrame_StopOutAnimation
+--local AlertFrame_PauseOutAnimation = WOW_BFA and AlertFrame_PauseOutAnimation or AlertFrame_StopOutAnimation
 -- BFA
 
 
@@ -1315,7 +1315,7 @@ function Overachiever.ToastFakeAchievement(name, baseID, playSound, chatMessage,
 	Overachiever.AlertSystem = AlertFrame:AddQueuedAlertFrameSubSystem("OverachieverAlertFrameTemplate", OverachieverAlertFrame_SetUp, 4, math.huge)
   end
 
-  if (not baseID) then  baseID = 5208;  end -- 5208 is "Twin Peaking", chosen because of its thumbs-up texture.
+  if (not baseID) then  baseID = 239;  end -- was set 5208 is "Twin Peaking", chosen because of its thumbs-up texture. (not in wrath)
   Overachiever.AlertSystem:AddAlert(baseID, not newEarn, name, delay, toptext, onClick, icon)
 
   --[[
@@ -1648,10 +1648,10 @@ end
 Overachiever.IsAchievementInUI = isAchievementInUI;
 Overachiever.OpenToAchievement = openToAchievement;
 Overachiever.GetAllAchievements = getAllAchievements;
---Overachiever.BuildCriteriaLookupTab = BuildCriteriaLookupTab;
+Overachiever.BuildCriteriaLookupTab = BuildCriteriaLookupTab;
 Overachiever.AddAchListToTooltip = AddAchListToTooltip;
-Overachiever.IsGuildAchievement = isGuildAchievement
-Overachiever.isUIInGuildView = isUIInGuildView
+-- Overachiever.IsGuildAchievement = isGuildAchievement
+-- Overachiever.isUIInGuildView = isUIInGuildView
 
 
 -- SLASH COMMANDS
@@ -1943,18 +1943,18 @@ end
 -- FRAME INITIALIZATION
 --------------------------
 
+
 Overachiever.MainFrame = CreateFrame("Frame")
 Overachiever.MainFrame:Hide()
-Overachiever.MainFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 Overachiever.MainFrame:RegisterEvent("ADDON_LOADED")
---Overachiever.MainFrame:RegisterEvent("ACHIEVEMENT_EARNED")
+Overachiever.MainFrame:RegisterEvent("PLAYER_LOGIN")
+Overachiever.MainFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+Overachiever.MainFrame:RegisterEvent("ACHIEVEMENT_EARNED")
 Overachiever.MainFrame:RegisterEvent("TRACKED_ACHIEVEMENT_UPDATE")
 Overachiever.MainFrame:RegisterEvent("CRITERIA_EARNED")
 Overachiever.MainFrame:RegisterEvent("PLAYER_LOGOUT")
 
 Overachiever.MainFrame:SetScript("OnEvent", Overachiever.OnEvent)
-
---Overachiever.MainFrame:RegisterEvent("PLAYER_LOGIN")
 
 
 
