@@ -2640,7 +2640,7 @@ local function SortDrop_OnSelect(self, value)
   frame:ForceUpdate(true)
 end
 
-local function OnLoad(v), ver, vc)
+local function OnLoad(v, ver, vc)
   VARS = v
   VARS_CHAR = vc
   sortdrop:SetSelectedValue(VARS.SuggestionsSort or 0)
