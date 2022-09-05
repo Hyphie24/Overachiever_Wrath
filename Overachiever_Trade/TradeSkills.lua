@@ -1,56 +1,33 @@
 
 local L = OVERACHIEVER_STRINGS
-local GetAchievementInfo = GetAchievementInfo
-local GetAchievementCriteriaInfo = Overachiever.GetAchievementCriteriaInfo
 local LBI = LibStub:GetLibrary("LibBabble-Inventory-3.0"):GetReverseLookupTable()
-
-local iconAchShield = "|TInterface\\AddOns\\Overachiever\\AchShield:0|t"                -- Our standard achievement-needed indicator.
-local iconAchShieldLarge = "|TInterface\\AddOns\\Overachiever\\AchShield:16:16:-4:-2|t" -- Large version.
-local iconAchShieldGlow = "|TInterface\\AddOns\\Overachiever_Trade\\AchShieldGlow:0|t"  -- Glowing/highlighted version.
-
---[[
-Overachiever.chatprint(iconAchShield .. " ONE")
-Overachiever.chatprint(iconAchShieldLarge .. " TWO")
-Overachiever.chatprint(iconAchShieldGlow .. " THREE")
---]]
-
---local chatprint = Overachiever.chatprint
 
 local TradeSkillLookup = {}
 
 do
   local TradeSkillAch = {
     Cooking = {
-      GourmetOutland = true,
       GourmetNorthrend = true,
-      GourmetCataclysm = true,
-      GourmetPandaren = true,
-	  GourmetDraenor = true,
-	  LegionMenu = true,
-	  BattleMenu = true,
-    --FashionAbomination = true,
+      GourmetOutland = true
     }
   }
-  local id, recipeID, _, completed
+  local lookup, id, name, _, completed
   for tradeName, list in pairs(TradeSkillAch) do
     TradeSkillLookup[tradeName] = {}
-    local lookup = TradeSkillLookup[tradeName]
+    lookup = TradeSkillLookup[tradeName]
     for ach in pairs(list) do
       id = OVERACHIEVER_ACHID[ach]
       for i=1,GetAchievementNumCriteria(id) do
-        _, _, completed, _, _, _, _, recipeID = GetAchievementCriteriaInfo(id, i)
+        name, _, completed = GetAchievementCriteriaInfo(id, i)
         if (not completed) then
-          lookup[recipeID] = lookup[recipeID] or {}
-          lookup[recipeID][id] = i
+          lookup[name] = lookup[name] or {}
+          lookup[name][id] = i
         end
       end
     end
   end
   TradeSkillAch = nil
 
-  --[[
-  -- !! We use recipe IDs instead of names so this should no longer be necessary.
-  -- !! This means L.TRADE_COOKING_OBJRENAME is deprecated and should be removed!
   local function renameObjective(tab, line, ...)
     if (line) then
       local old, new = strsplit("=", line)
@@ -66,60 +43,30 @@ do
     renameObjective( TradeSkillLookup.Cooking, strsplit("\n", L.TRADE_COOKING_OBJRENAME) )
   end
   renameObjective = nil
-  --]]
-end
-
-local function getOpenTradeskill()
-	return select(7, C_TradeSkillUI.GetTradeSkillLine())
-	--local _, name = C_TradeSkillUI.GetTradeSkillLine()
-	--return name
 end
 
 
-local function TradeSkillCheck(tradeName, recipeID, getList)
-  local lookup = TradeSkillLookup[tradeName] and TradeSkillLookup[tradeName][recipeID]
+local list
+
+local function TradeSkillCheck(tradeName, name, getList)
+  local lookup = TradeSkillLookup[tradeName][name]
   if (lookup) then
-    local anyIncomplete, list
+    local anyIncomplete
+    if (getList) then  list = list and wipe(list) or {};  end
+
     for id,i in pairs(lookup) do
-      -- If we don't care if the achievement is complete, or it isn't complete:
-      if (Overachiever_Settings.Tradeskill_ShowCompletedAch_Cooking or (not select(4, GetAchievementInfo(id)))) then
-        local _, _, completed = GetAchievementCriteriaInfo(id, i)
-        if (completed) then
-          lookup[id] = nil
-        else
-          if (not getList) then  return id;  end
-          anyIncomplete = true
-          if (not list) then
-            if (type(getList) == "table") then
-              list = getList
-            else
-              list = {}
-            end
-          end
-          list[#list+1] = id
-        end
+      _, _, completed = GetAchievementCriteriaInfo(id, i)
+      if (completed) then
+        lookup[id] = nil
+      else
+        if (not getList) then  return id;  end
+        anyIncomplete = true
+        list[#list+1] = id
       end
     end
 
     if (anyIncomplete) then  return list;  end
   end
-  
-end
-
-local function TradeSkillCheckAll(recipeID, getList)
-  local list = getList and {} or nil
-  local anyFound = false
-  for tradeName in pairs(TradeSkillLookup) do
-    local v = TradeSkillCheck(tradeName, recipeID, list)
-    if (v) then
-      if (getList) then
-        anyFound = true
-      else
-        return v
-      end
-    end
-  end
-  if (anyFound) then  return list;  end
 end
 
 
@@ -138,8 +85,8 @@ end
 local function skillButtonOnClick(self)
   if (IsControlKeyDown()) then
     local icon = icons[self]
-    if (icon.recipeID) then
-      local id = TradeSkillCheck(LBI[getOpenTradeskill()], icon.recipeID)
+    if (icon.name) then
+      local id = TradeSkillCheck(LBI[GetTradeSkillLine()], icon.name)
       if (id) then  Overachiever.OpenToAchievement(id);  end
     end
   end
@@ -192,30 +139,176 @@ end
 -- ---------- Support for other addons: ----------
 
 -- Skillet:
+if (Skillet) then
+  local lilsparkys = not not Skillet.version:find("LS")
 
-function Overachiever.GetIconForRecipe(recipeID)
-  local achIDs = TradeSkillCheckAll(recipeID, true)
-  if (achIDs) then
-    local list = {}
-    for i,id in ipairs(achIDs) do
-      local _, name = GetAchievementInfo(id)
-      list[i] = { id = id, name = name }
+  local function sortByAchRequired(tradeName, a, b)
+-- This groups recipes that are required by the same number of achievements together. Each group is ordered according
+-- to the first achievement (by ID) that requires each recipe, sorting them first by the achievement name, then the
+-- achievement ID, then the recipe name. Recipes that are required by the most achievements go first.
+    if (a and b) then
+      -- Support for lilsparky's branch:
+      if (lilsparkys) then
+        a, b = a.skillIndex, b.skillIndex
+        tradeName = GetTradeSkillLine()
+      end
+
+      local aName = GetTradeSkillInfo(a)
+      local bName = GetTradeSkillInfo(b)
+      tradeName = LBI[tradeName]
+
+      if (TradeSkillLookup[tradeName]) then
+        -- Get number of achievements that require this recipe:
+        a = TradeSkillCheck(tradeName, aName, true)
+        local aNum = a and #a or 0
+        if (a) then  -- This can't wait since TradeSkillCheck is going to be called again, which wipes the table.
+          sort(a)
+          a = a[1]
+        end
+        b = TradeSkillCheck(tradeName, bName, true)
+        local bNum = b and #b or 0
+
+        if (aNum ~= bNum) then
+          return aNum > bNum  -- Notice that we check greater-than, not less-than here.
+        elseif (aNum > 0) then  -- If both are greater than zero:
+          sort(b)
+          b = b[1]
+          local aID, aV = GetAchievementInfo(a)
+          local bID, bV = GetAchievementInfo(b)
+          if (aID ~= bID) then
+            if (aV ~= bV) then
+              return aV < bV
+            else
+              return aID < bID
+            end
+          end
+        end
+      end
+
+      -- Fall back to names by alphabetical order:
+      return aName < bName
+
+    else
+      return not b
     end
-    return iconAchShield, list
   end
-  return ""
+
+  Skillet:AddRecipeSorter(L.TRADE_SKILLET_ACHSORT, sortByAchRequired)
+
+  local orig_get_extra = Skillet.GetExtraItemDetailText
+  Skillet.GetExtraItemDetailText = function(obj, tradeskill, skill_index)
+    --print("Skillet.GetExtraItemDetailText")
+    local before = orig_get_extra(obj, tradeskill, skill_index)
+    tradeskill = LBI[tradeskill]
+    local achs = TradeSkillLookup[tradeskill] and TradeSkillCheck(tradeskill, GetTradeSkillInfo(skill_index), true)
+    if (not achs) then  return before;  end
+
+    local myvalue = "|TInterface\\AddOns\\Overachiever_Trade\\AchShieldGlow:0|t |cffffd100" ..
+      L.REQUIREDFORMETATIP .. "|cffffffff"
+    local _, name
+    if (#achs > 1) then
+      for i,id in ipairs(achs) do
+        _, name = GetAchievementInfo(id)
+        myvalue = myvalue.."|n  - "..name
+      end
+    else
+      _, name = GetAchievementInfo(achs[1])
+      myvalue = myvalue.."  "..name
+    end
+    myvalue = myvalue.."|r"
+
+    if (before) then
+      return before .. "|n" .. myvalue
+    else
+      return myvalue
+    end
+  end
+
+  local orig_get_prefix = Skillet.GetRecipeNamePrefix
+  Skillet.GetRecipeNamePrefix = function(obj, tradeskill, skill_index)
+    local before = orig_get_prefix(tradeskill, skill_index)
+
+    -- Support for lilsparky's branch:
+    if (lilsparkys) then
+      tradeskill = GetTradeSkillLine()
+    end
+    tradeskill = LBI[tradeskill]
+
+    local ach = TradeSkillLookup[tradeskill] and TradeSkillCheck(tradeskill, GetTradeSkillInfo(skill_index), false)
+    if (not ach) then  return before;  end
+
+    local myvalue = "|TInterface\\AddOns\\Overachiever\\AchShield:16:16:-4:-2|t"
+    if (before) then
+      return myvalue .. before
+    else
+      return myvalue
+    end
+  end
+
+  local function SkilletButtonOnClick(self)
+    if ( (not lilsparkys and IsControlKeyDown()) or (lilsparkys and IsAltKeyDown()) ) then
+      local index = self:GetID()
+      if (index) then
+        local tradeName = LBI[GetTradeSkillLine()]
+        local id = TradeSkillLookup[tradeName] and TradeSkillCheck(tradeName, GetTradeSkillInfo(index), false)
+        if (id) then  Overachiever.OpenToAchievement(id);  end
+      end
+    end
+  end
+
+  local SkilletButtonOnEnter
+  if (lilsparkys) then
+  -- For some reason, lilsparky's branch explicitly removed support for GetExtraItemDetailText, so we're "forcing"
+  -- our way in, at least to the tooltips:
+    function SkilletButtonOnEnter(self)
+      currentButton = self
+      local index = self:GetID()
+      if (index and not self.locked) then
+        local tradeName = LBI[GetTradeSkillLine()]
+        local achlist = TradeSkillLookup[tradeName] and TradeSkillCheck(tradeName, GetTradeSkillInfo(index), true)
+        if (achlist) then
+          -- The custom tooltip used by Skillet doesn't handle AddTexture, or we'd use that instead of this method:
+          SkilletTradeskillTooltip:AddLine("|TInterface\\AddOns\\Overachiever_Trade\\AchShieldGlow:0|t |cffffd100" .. L.REQUIREDFORMETATIP)
+          Overachiever.AddAchListToTooltip(SkilletTradeskillTooltip, achlist)
+          SkilletTradeskillTooltip:Show()
+        end
+      end
+    end
+
+    -- Needed for when the button's contents change while the cursor is over it:
+    local orig_Skillet_SkillButton_OnEnter = Skillet.SkillButton_OnEnter
+    Skillet.SkillButton_OnEnter = function(obj, button, ...)
+      orig_Skillet_SkillButton_OnEnter(obj, button, ...)
+      if (currentButton) then  SkilletButtonOnEnter(currentButton);  end
+    end
+  end
+
+  local hookedOnClick = {}
+
+  local function SkilletButtonPreShow(button)
+    if (not hookedOnClick[button]) then
+      hookedOnClick[button] = true
+      button:HookScript("OnClick", SkilletButtonOnClick)
+      if (lilsparkys) then
+        button:HookScript("OnEnter", SkilletButtonOnEnter)
+        button:HookScript("OnLeave", skillButtonOnLeave)  -- so currentButton will be set to nil
+      end
+    end
+    return button
+  end
+
+  Skillet:AddPreButtonShowCallback(SkilletButtonPreShow)
+
 end
 
-
 -- Advanced Trade Skill Window:
---[[ Very old code! ATSW is no longer maintained.
 if (ATSWFrame) then
 
   function skillButtonOnEnter(self, _, calledByExamine)
     currentButton = self
     local icon = icons[self]
     if (icon.name) then
-      local achlist = TradeSkillCheck(LBI[getOpenTradeskill()], icon.name, true)
+      local achlist = TradeSkillCheck(LBI[GetTradeSkillLine()], icon.name, true)
       if (achlist) then
         ATSWTradeskillTooltip:AddLine(" ")
         -- The custom tooltip used by ATSW doesn't handle AddTexture, or we'd use that instead of this method:
@@ -240,7 +333,7 @@ if (ATSWFrame) then
       icon.name = nil
     end
 
-    local tradeName = LBI[getOpenTradeskill()]
+    local tradeName = LBI[GetTradeSkillLine()]
     if (TradeSkillLookup[tradeName]) then
       -- Find icons that should be displayed:
       local skillButton, i = ATSWSkill1, 1
@@ -265,10 +358,8 @@ if (ATSWFrame) then
   hooksecurefunc("ATSWFrame_Update", ExamineTradeSkillUI)
 
 end
---]]
 
 -- Producer:
---[[ Very old code! Producer is no longer maintained.
 if (Producer) then
 
   local function producer_achievementClick(id)
@@ -287,7 +378,7 @@ if (Producer) then
 
   local orig_AddTradeSkillLines = Producer.CraftFrame.AddTradeSkillLines
   function Producer.CraftFrame:AddTradeSkillLines(trade, grp)
-    local tradeskill = LBI[getOpenTradeskill()]
+    local tradeskill = LBI[GetTradeSkillLine()]
     local achs = TradeSkillLookup[tradeskill] and TradeSkillCheck(tradeskill, trade.name, true)
     if (achs) then
       titleLine = titleLine or { type = "header", text = "|cffffd100" .. L.REQUIREDFORMETATIP, isPlain = true, icon = "Interface\\AddOns\\Overachiever_Trade\\AchShieldGlow" }
@@ -306,7 +397,7 @@ if (Producer) then
   -- Thanks to CMTitan (CurseForge.com user) for the code this is based on:
   local function ProducerTradeskillChanger(trade, line)
       if (not trade.name) then  return line;  end
-      local tradeName = LBI[getOpenTradeskill()]
+      local tradeName = LBI[GetTradeSkillLine()]
       if (TradeSkillLookup[tradeName] and TradeSkillCheck(tradeName, trade.name)) then
         line.text = "|TInterface\\AddOns\\Overachiever\\AchShield:16:16:-4:-2|t" .. line.text
       end
@@ -315,7 +406,6 @@ if (Producer) then
   Producer.CraftFrame:RegisterTradeSkillChanger( ProducerTradeskillChanger )
 
 end
---]]
 
 -- ---------- End addon support section. ----------
 
@@ -324,16 +414,16 @@ end
 skillButtonOnEnter = skillButtonOnEnter or function(self, _, calledByExamine)
   currentButton = self
   local icon = icons[self]
-  if (icon.recipeID) then
-    local achlist = TradeSkillCheck(LBI[getOpenTradeskill()], icon.recipeID, true)
+  if (icon.name) then
+    local achlist = TradeSkillCheck(LBI[GetTradeSkillLine()], icon.name, true)
     if (achlist) then
       GameTooltip:SetOwner(self, "ANCHOR_NONE")
       GameTooltip:SetPoint("TOPLEFT", self, "TOPRIGHT", -45, 0)
+      GameTooltip:SetBackdropColor(TOOLTIP_DEFAULT_BACKGROUND_COLOR.r, TOOLTIP_DEFAULT_BACKGROUND_COLOR.g, TOOLTIP_DEFAULT_BACKGROUND_COLOR.b)
       GameTooltip:AddLine(L.REQUIREDFORMETATIP)
       GameTooltip:AddLine(" ")
       Overachiever.AddAchListToTooltip(GameTooltip, achlist)
       GameTooltip:AddLine(" ")
-      if (Overachiever_Debug) then  GameTooltip:AddLine(icon.name .. " recipe ID: " .. icon.recipeID)  end
       GameTooltip:Show()
       return true
     elseif (not calledByExamine) then
@@ -344,54 +434,28 @@ skillButtonOnEnter = skillButtonOnEnter or function(self, _, calledByExamine)
 end
 
 if (ExamineTradeSkillUI == nil) then
-  function ExamineTradeSkillUI(self)
-    --chatprint("ExamineTradeSkillUI")
+  function ExamineTradeSkillUI()
     -- Hide all icons:
     for btn, icon in pairs(icons) do
       icon:Hide()
       highlights[icon]:Hide()
-      icon.recipeID = nil
       icon.name = nil
     end
 
-    local tradeName = LBI[getOpenTradeskill()]
+    local tradeName = LBI[GetTradeSkillLine()]
     if (TradeSkillLookup[tradeName]) then
       -- Find icons that should be displayed:
-	  -- Based on part of TradeSkillRecipeListMixin:RefreshDisplay() in Blizzard_TradeSkillRecipeList.lua
-		local offset = HybridScrollFrame_GetOffset(self);
-		local children = { TradeSkillFrameScrollChild:GetChildren() };
-
-		for i, tradeSkillButton in ipairs(self.buttons) do
-			local dataIndex = offset + i;
-			local tradeSkillInfo = self.dataList[dataIndex];
-			if tradeSkillInfo then
-				if tradeSkillInfo.type == "recipe" and TradeSkillCheck(tradeName, tradeSkillInfo.recipeID) then
-				  --local icon = GetIcon( _G["TradeSkillSkill"..i] )
-				  local icon = GetIcon( children[i] )
-				  icon:Show()
-				  highlights[icon]:Show()
-				  icon.recipeID = tradeSkillInfo.recipeID
-          icon.name = tradeSkillInfo.name
-				end
-			end
-		end
-
-	  --[[ OLD - pre WoW 7.0.x
-      -- Based on part of TradeSkillFrame_Update().
       local skillOffset = FauxScrollFrame_GetOffset(TradeSkillListScrollFrame)
-      local hasFilterBar = TradeSkillFilterBar:IsShown()
-      local diplayedSkills = hasFilterBar and (TRADE_SKILLS_DISPLAYED - 1) or TRADE_SKILLS_DISPLAYED  -- "diplayedSkills" [sic], as per original
       local skillName, skillType
-      for i=1,diplayedSkills do
+      for i=1,TRADE_SKILLS_DISPLAYED do
         skillName, skillType = GetTradeSkillInfo(i + skillOffset)
         if (skillName and skillType ~= "header" and TradeSkillCheck(tradeName, skillName)) then
-          local icon = GetIcon( _G["TradeSkillSkill"..(hasFilterBar and (i + 1) or i)] )
+          local icon = GetIcon( _G["TradeSkillSkill"..i] )
           icon:Show()
           highlights[icon]:Show()
           icon.name = skillName
         end
       end
-	  --]]
     end
 
     -- Needed for when the button's contents change while the cursor is over it:
@@ -400,12 +464,5 @@ if (ExamineTradeSkillUI == nil) then
     end
   end
 
-  --old: hooksecurefunc("TradeSkillFrame_Update", ExamineTradeSkillUI)
-
-  --hooksecurefunc(TradeSkillRecipeListMixin, "RefreshDisplay", ExamineTradeSkillUI)
-
-  --hooksecurefunc(TradeSkillFrame.RecipeList, "RefreshDisplay", ExamineTradeSkillUI)
-  --hooksecurefunc(TradeSkillFrame.RecipeList, "update", ExamineTradeSkillUI)
-  
-  hooksecurefunc(TradeSkillFrame.RecipeList, "UpdateScrollChildRect", ExamineTradeSkillUI)
+  hooksecurefunc("TradeSkillFrame_Update", ExamineTradeSkillUI)
 end
