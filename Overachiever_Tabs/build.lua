@@ -6,7 +6,7 @@ local L = OVERACHIEVER_STRINGS
 --local isGuildAchievement = Overachiever.IsGuildAchievement
 --local isUIInGuildView = Overachiever.isUIInGuildView
 
-local tabs, tabselected
+local tabs, tabselected, prevtab
 local LeftFrame
 local varsLoaded, oldver = false
 
@@ -54,10 +54,28 @@ AchievementFrame_SetFilter = function(value, tabswitch)
   end
 end
 
+local function click_parent(self, ...)
+  return self:GetParent():Click()
+end
+
 local function getFrameOfButton(button)
   return button:GetParent():GetParent():GetParent()
 end
 
+
+local function delayedToggleView(self)
+  if (not self) then
+    if (tabselected) then  tabselected:SetScript("OnUpdate", delayedToggleView);  end
+    return;
+  end
+  self:SetScript("OnUpdate", nil)
+  if (self.selection) then
+      elseif (self.guildView_default) then
+    if (not isUIInGuildView()) then  AchievementFrame_ToggleView();  end
+ -- elseif () then
+   -- AchievementFrame_ToggleView()
+  end
+end
 
 local function clearSelection(frame)
 -- Based on AchievementFrameAchievements_ClearSelection().
@@ -76,9 +94,11 @@ local function clearSelection(frame)
   end
 
   frame.selection = nil;
+  --if (isUIInGuildView()) then  AchievementFrame_ToggleView();  end
 end
 
 local function selectButton(button)
+
 -- Based on AchievementFrameAchievements_SelectButton().
   local achievements = getFrameOfButton(button);
 
@@ -95,18 +115,70 @@ local function isPreviousAchievementInUI(id)
   end
 end
 
--- local function AutoTrackIcon_OnEnter(self)
-  -- GameTooltip:SetOwner(self, "ANCHOR_NONE")
-  -- GameTooltip:SetPoint("TOPLEFT", self, "TOPRIGHT", 10, 0)
-  -- GameTooltip:AddLine(L.SUGGESTIONS_AUTOTRACKING_TIP, 1, 1, 1)
-  -- GameTooltip:AddLine(L.SUGGESTIONS_AUTOTRACKING_TIP2)
-  -- GameTooltip:Show()
--- end
+ local function AutoTrackIcon_OnEnter(self)
+   GameTooltip:SetOwner(self, "ANCHOR_NONE")
+   GameTooltip:SetPoint("TOPLEFT", self, "TOPRIGHT", 10, 0)
+   GameTooltip:AddLine(L.SUGGESTIONS_AUTOTRACKING_TIP, 1, 1, 1)
+   GameTooltip:AddLine(L.SUGGESTIONS_AUTOTRACKING_TIP2)
+   GameTooltip:Show()
+ end
 
--- local function AutoTrackIcon_OnLeave(self)
-  -- GameTooltip:Hide()
--- end
+ local function AutoTrackIcon_OnLeave(self)
+   GameTooltip:Hide()
+ end
 
+local function setButtonGuildView(button, guildView)
+-- Based on parts of AchievementFrameAchievements_ToggleView().
+  if (guildView) then
+    if (not button.Oa_guildView) then
+      button.Oa_guildView = true
+	local name = button:GetName();
+	-- reset button info to get proper saturation/desaturation
+	button.completed = nil;
+	button.id = nil;
+	-- title
+	button.titleBar:SetAlpha(1);
+	-- icon frame
+	button.icon.frame:SetTexture("Interface\\AchievementFrame\\UI-Achievement-Guild");
+	button.icon.frame:SetTexCoord(0.25976563, 0.40820313, 0.50000000, 0.64453125);
+	button.icon.frame:SetPoint("CENTER", 2, 2);
+	-- tsunami
+	local tsunami = _G[name.."BottomTsunami1"];
+	tsunami:SetTexture("Interface\\AchievementFrame\\UI-Achievement-Borders");
+	tsunami:SetTexCoord(0, 0.72265, 0.58984375, 0.65234375);
+	tsunami:SetAlpha(0.2);
+	local tsunami = _G[name.."TopTsunami1"];
+	tsunami:SetTexture("Interface\\AchievementFrame\\UI-Achievement-Borders");
+	tsunami:SetTexCoord(0.72265, 0, 0.65234375, 0.58984375);
+	tsunami:SetAlpha(0.15);
+	-- glow
+	button.glow:SetTexCoord(0, 1, 0.26171875, 0.51171875);
+    end
+  elseif (button.Oa_guildView) then
+    button.Oa_guildView = nil
+	local name = button:GetName();
+	-- reset button info to get proper saturation/desaturation
+	button.completed = nil;
+	button.id = nil;
+	-- title
+	button.titleBar:SetAlpha(0.8);
+	-- icon frame
+	button.icon.frame:SetTexture("Interface\\AchievementFrame\\UI-Achievement-IconFrame");
+	button.icon.frame:SetTexCoord(0, 0.5625, 0, 0.5625);
+	button.icon.frame:SetPoint("CENTER", -1, 2);
+	-- tsunami
+	local tsunami = _G[name.."BottomTsunami1"];
+	tsunami:SetTexture("Interface\\AchievementFrame\\UI-Achievement-Borders");
+	tsunami:SetTexCoord(0, 0.72265, 0.51953125, 0.58203125);
+	tsunami:SetAlpha(0.35);
+	local tsunami = _G[name.."TopTsunami1"];
+	tsunami:SetTexture("Interface\\AchievementFrame\\UI-Achievement-Borders");
+	tsunami:SetTexCoord(0.72265, 0, 0.58203125, 0.51953125);
+	tsunami:SetAlpha(0.3);
+	-- glow
+	button.glow:SetTexCoord(0, 1, 0.00390625, 0.25390625);
+  end
+end
 
 local function displayAchievement(button, frame, achievement, index, selectionID)
 -- This function is based on AchievementButton_DisplayAchievement, with only a few alterations as needed.
@@ -140,6 +212,7 @@ local function displayAchievement(button, frame, achievement, index, selectionID
     else
       button.shield.icon:SetTexture([[Interface\AchievementFrame\UI-Achievement-Shields-NoPoints]]);
     end
+	
     button.description:SetText(description);
     button.hiddenDescription:SetText(description);
     button.numLines = ceil(button.hiddenDescription:GetHeight() / ACHIEVEMENTUI_FONTHEIGHT);
@@ -225,6 +298,31 @@ local function displayAchievement(button, frame, achievement, index, selectionID
     button.description:Show();
     button.hiddenDescription:Hide();
   end
+
+ if (frame.ShouldAutoTrack and frame.ShouldAutoTrack(id)) then
+    if (not button.AutoTrackIcon) then
+      --local icon = CreateFrame("frame", nil, button)
+      local icon = CreateFrame("Button", nil, button)
+      icon:SetWidth(32); icon:SetHeight(32)
+      icon:SetPoint("TOPLEFT", button, "TOPLEFT", 142, -9)
+      local tex = icon:CreateTexture(nil, "BACKGROUND")
+      tex:SetTexture("Interface\\Minimap\\Tracking\\None") --tex:SetTexture(136460)
+      tex:SetPoint("CENTER", icon, "CENTER", 0, 0)
+      icon.tex = tex
+      --icon:EnableMouse(true)
+      icon:SetMouseMotionEnabled(true)
+      icon:SetScript("OnEnter", AutoTrackIcon_OnEnter)
+      icon:SetScript("OnLeave", AutoTrackIcon_OnLeave)
+      icon:SetMouseClickEnabled(false) -- Have to put this after SetScript calls or it gets reverted.
+      icon:SetScale(0.65)
+      button.AutoTrackIcon = icon
+  	end
+    button.AutoTrackIcon:Show()
+  elseif (button.AutoTrackIcon) then
+    button.AutoTrackIcon:Hide()
+  end
+
+  --if (Overachiever_Debug) then  print("- Last bit took for \""..name.."\" took "..(debugprofilestop() - StartTime) .." ms.");  end
 
   return id;
 end
@@ -462,68 +560,61 @@ local function forceUpdate_all()
 end
 
 local function tabUnselect()
-																				
-					   
+  --print("tabUnselect",tabselected and tabselected.tab.text:GetText() or "nil")
+  prevtab = tabselected
   tabselected = nil
-  for k,tab in ipairs(tabs) do
-    tab.text:SetPoint("CENTER", tab, "CENTER", 0, -3)
-  end
+  -- for k,tab in ipairs(tabs) do
+  --   tab.text:SetPoint("CENTER", tab, "CENTER", 0, -3)
+  -- end
 end
 
-local function tabOnClick(self, button)
-  self.text:SetPoint("CENTER", self, "CENTER", 0, -5)
-  local i, tab = 0
-  repeat
-																			  
-																						
-			  
-    i = i + 1
-    tab = _G["AchievementFrameTab"..i]
-    if (tab and tab ~= self) then
-								 
-      tab.text:SetPoint("CENTER", tab, "CENTER", 0, -3)
-		  
-										   
-		 
+local tabOnClick
+do
+  local true_clickedTab
+  AchievementFrame_UpdateTabs = function(clickedTab, ...) -- Based on AchievementFrame_UpdateTabs, which we're overwriting:
+    clickedTab = true_clickedTab or clickedTab --Overachiever: Added this line
+    PanelTemplates_Tab_OnClick(_G["AchievementFrameTab"..clickedTab], AchievementFrame);
+    local tab;
+    for i = 1, 99 do --Overachiever: Increased max from 3 to 99
+    tab = _G["AchievementFrameTab"..i];
+      if (not tab) then  break;  end --Overachiever: Added this line
+      if ( i == clickedTab ) then
+        tab.text:SetPoint("CENTER", 0, -5);
+      else
+        tab.text:SetPoint("CENTER", 0, -3);
+      end
     end
-  until (not tab)
-  -- Don't play sound when this is a silentDisplay or Overachiever.OpenTab_frame call.
-  if (button) then  PlaySound(SOUNDKIT.IG_CHARACTER_INFO_TAB);  end
-
-  if (self.flash and UIFrameIsFading(self.flash)) then
-    UIFrameFlashRemoveFrame(self.flash)
-    self.flash:Hide()
   end
 
-  tabselected = self.frame
-								  
-																																																																	  
-						 
+  function tabOnClick(self, button)
+    true_clickedTab = self:GetID()
+    AchievementFrameBaseTab_OnClick(1) -- This will handle some possibly-necessary toggling of views, etc. (Have to use 1 instead of the proper tab ID because the function treats 4+ the same as it would 3 (statistics) instead of 1 (normal achievements listing).)
+    true_clickedTab = nil
 
-																						
-																	 
+    -- Don't play sound when this is a silentDisplay or Overachiever.OpenTab_frame call.
+    if (button) then  PlaySound(SOUNDKIT.IG_CHARACTER_INFO_TAB);  end
 
-														
-										 
-					   
-	   
+    if (self.flash and UIFrameIsFading(self.flash)) then
+      UIFrameFlashRemoveFrame(self.flash)
+      self.flash:Hide()
+    end
 
-							
-  AchievementFrame_ShowSubFrame(self.frame, LeftFrame)
-  LeftFrame.label:SetText(self:GetText())
+    tabselected = self.frame
+    AchievementFrame_ShowSubFrame(self.frame, LeftFrame)
+    LeftFrame.label:SetText(self:GetText())
 
-																													  
-																	   
-									  
-																	  
-										
-																			  
-																													   
+	-- Working around a strange bug where the Help Icon -- or its texture (if not the frame itself) -- floats on its own.
+	-- Problem seems to only happen when Make Draggable option is checked.
+	--LeftFrame.helpIcon:ClearAllPoints()
+	--LeftFrame.helpIcon:SetPoint("LEFT", LeftFrame.label, "RIGHT", 4, 0)
+	LeftFrame.helpIcon.tex:ClearAllPoints()
+	LeftFrame.helpIcon.tex:SetPoint("CENTER", LeftFrame.helpIcon, "CENTER", 0, 0)
+	-- End workaround. Hopefully, whatever bug is causing this will be fixed and this workaround will be unnecessary soon.
 
-  AchievementFrameWaterMark:SetTexture(self.watermark)
-  PanelTemplates_Tab_OnClick(self, AchievementFrame)
-  updateAchievementsList(self.frame)
-	 
+    AchievementFrameWaterMark:SetTexture(self.watermark) -- Note: nil actually works here for watermark texture. No error; just no visible watermark!
+    PanelTemplates_Tab_OnClick(self, AchievementFrame)  -- Not needed here any more: AchievementFrame_UpdateTabs, called by AchievementFrameBaseTab_OnClick, will call it.
+    updateAchievementsList(self.frame)
+  end
 end
 
 local function silentDisplay(button)
@@ -557,24 +648,24 @@ local function achbtnOnClick(self, button, ignoreModifiers)
   end
 
   -- This section based on the AchievementButton_OnClick function in Blizzard_AchievementUI.lua:
-  -- if (IsModifiedClick() and not ignoreModifiers) then
-  	-- local handled = nil;
-	-- if ( IsModifiedClick("CHATLINK") ) then
-		-- local achievementLink = GetAchievementLink(self.id);
-		-- if ( achievementLink ) then
-			-- handled = ChatEdit_InsertLink(achievementLink);
-			-- if ( not handled and SocialPostFrame and Social_IsShown() ) then
-				-- Social_InsertLink(achievementLink);  -- Can this introduce taint??
-				-- handled = true;
-			-- end
-		-- end
-	-- end
-	-- if ( not handled and IsModifiedClick("QUESTWATCHTOGGLE") ) then
-		-- AchievementButton_ToggleTracking(self.id);
-	-- end
-	-- return;
+  if (IsModifiedClick() and not ignoreModifiers) then
+  	local handled = nil;
+	if ( IsModifiedClick("CHATLINK") ) then
+		local achievementLink = GetAchievementLink(self.id);
+		if ( achievementLink ) then
+			handled = ChatEdit_InsertLink(achievementLink);
+			if ( not handled and SocialPostFrame and Social_IsShown() ) then
+				Social_InsertLink(achievementLink);  -- Can this introduce taint??
+				handled = true;
+			end
+		end
+	end
+	if ( not handled and IsModifiedClick("QUESTWATCHTOGGLE") ) then
+		AchievementButton_ToggleTracking(self.id);
+	end
+	return;
 -- Pre Overachiever 1.0 (released with WoW 8.0, though some changes made were to catch up with previous changes):
-  if (IsModifiedClick()) then
+ --[[ if (IsModifiedClick()) then
     if ( IsModifiedClick("CHATLINK") and ChatFrameEditBox:IsVisible() ) then
       local achievementLink = GetAchievementLink(self.id);
       if ( achievementLink ) then
@@ -584,7 +675,7 @@ local function achbtnOnClick(self, button, ignoreModifiers)
       AchievementButton_ToggleTracking(self.id);
     end
     return;
-
+--]]
   end
 
   local frame = getFrameOfButton(self)
@@ -600,9 +691,9 @@ local function achbtnOnClick(self, button, ignoreModifiers)
   clearSelection(frame)
   selectButton(self);
   Overachiever.RecentReminders_Check()
- -- In_Guild_View = isUIInGuildView()
   displayAchievement(self, frame, self.id, self.index, self.id)
   HybridScrollFrame_ExpandButton(frame.scrollFrame, ((self.index - 1) * ACHIEVEMENTBUTTON_COLLAPSEDHEIGHT), self:GetHeight());
+  delayedToggleView()
   updateAchievementsList(frame)
 end
 
@@ -610,11 +701,11 @@ local redir_btn_tinsert
 local function post_AchievementButton_OnLoad(self)
   if (redir_btn_tinsert) then
     self:SetScript("OnClick", achbtnOnClick)
-    --local shield = _G[self:GetName().."Shield"]
+    local shield = _G[self:GetName().."Shield"]
     --shield:SetScript("OnClick", click_parent)
     tinsert(redir_btn_tinsert, self);
     -- Our button isn't put into this table as of WoW 4.0.1, so this line is unneeded:
-     tremove(AchievementFrameAchievements.buttons);
+    -- tremove(AchievementFrameAchievementsContainer.buttons);
 
 	-- Add right click feature:
 	self:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -630,6 +721,7 @@ end
 local function ListFrame_OnShow(self)
   self.panel:Show()
   AchievementFrame_SetFilter( FilterByTab[self] or ACHIEVEMENT_FILTER_ALL, true )
+  delayedToggleView()
 end
 
 local function ListFrame_OnHide(self)
@@ -697,49 +789,49 @@ function Overachiever.BuildNewTab(name, text, watermark, helptip, loadFunc, filt
       getmetatable(self).__index.Hide(self);
     end
 
-	 local frameWarning = CreateFrame("Frame", nil, frame)
-	 frameWarning:SetPoint("BOTTOM", frame, "BOTTOM", 0, 3)
-	 frameWarning:SetWidth(520)  -- 492  490
-	 frameWarning:SetHeight(26)
-	 frameWarning:SetFrameLevel(frameWarning:GetFrameLevel() + 2)
-	 frameWarning.tex = frameWarning:CreateTexture("$parentBackground", "BACKGROUND")
-	 frameWarning.tex:SetColorTexture(0.025, 0.025, 0.025, 0.75)
-	 frameWarning.tex:SetAllPoints()
-	 frameWarning:Hide()
-	 frame.frameWarning = frameWarning
+	local frameWarning = CreateFrame("Frame", nil, frame)
+	frameWarning:SetPoint("BOTTOM", frame, "BOTTOM", 0, 3)
+	frameWarning:SetWidth(520)  -- 492  490
+	frameWarning:SetHeight(26)
+	frameWarning:SetFrameLevel(frameWarning:GetFrameLevel() + 2)
+	frameWarning.tex = frameWarning:CreateTexture("$parentBackground", "BACKGROUND")
+	frameWarning.tex:SetColorTexture(0.025, 0.025, 0.025, 0.75)
+	frameWarning.tex:SetAllPoints()
+	frameWarning:Hide()
+	frame.frameWarning = frameWarning
 
-	 local filteredOutLabel = frameWarning:CreateFontString(nil, "HIGH", "GameFontGreen") --"GameFontNormal" "GameFontHighlight"
-	 filteredOutLabel:SetPoint("CENTER", frameWarning, "CENTER", 0, 0)
-	 filteredOutLabel:SetWidth(490)
-	 --filteredOutLabel:Font:SetTextColor(r, g, b, a)
-	 --filteredOutLabel:SetShadowColor(1, 0, 0, 1)
-	 frameWarning.label = filteredOutLabel
+	local filteredOutLabel = frameWarning:CreateFontString(nil, "HIGH", "GameFontGreen") --"GameFontNormal" "GameFontHighlight"
+	filteredOutLabel:SetPoint("CENTER", frameWarning, "CENTER", 0, 0)
+	filteredOutLabel:SetWidth(490)
+	--filteredOutLabel:Font:SetTextColor(r, g, b, a)
+	--filteredOutLabel:SetShadowColor(1, 0, 0, 1)
+	frameWarning.label = filteredOutLabel
 
-	 local function scollbarValueChange(self, value, ...)
-	 local vmin, vmax = self:GetMinMaxValues()
-	 local prev = frameWarning.top
-	 --local new = (value >= (vmax / 2))
-	 local new = (value >= vmax - 20)
-	 if (prev ~= new) then
-	 frameWarning.top = new
-			 frameWarning:ClearAllPoints()
-			 if (new) then
-				 frameWarning:SetPoint("TOP", frame, "TOP", 0, -3)
-			 else
-				 frameWarning:SetPoint("BOTTOM", frame, "BOTTOM", 0, 3)
-			 end
-		 end
-	 end
-	 scrollbar:HookScript("OnValueChanged", scollbarValueChange)
+	local function scollbarValueChange(self, value, ...)
+		local vmin, vmax = self:GetMinMaxValues()
+		local prev = frameWarning.top
+		--local new = (value >= (vmax / 2))
+		local new = (value >= vmax - 20)
+		if (prev ~= new) then
+			frameWarning.top = new
+			frameWarning:ClearAllPoints()
+			if (new) then
+				frameWarning:SetPoint("TOP", frame, "TOP", 0, -3)
+			else
+				frameWarning:SetPoint("BOTTOM", frame, "BOTTOM", 0, 3)
+			end
+		end
+	end
+	scrollbar:HookScript("OnValueChanged", scollbarValueChange)
 
-	 scrollbar:HookScript("OnShow", function(self)
-		 frameWarning:SetWidth(492)
-		 --scollbarValueChange(self, self:GetValue()) -- Might be needed to fix a bug where the warning message appears at the top of the window when it should be at the bottom. But, after running into the issue once, I couldn't reproduce the problem, so disabling for now since I can't test whether this helps or even hurts.
-	 end)
+	scrollbar:HookScript("OnShow", function(self)
+		frameWarning:SetWidth(492)
+		--scollbarValueChange(self, self:GetValue()) -- Might be needed to fix a bug where the warning message appears at the top of the window when it should be at the bottom. But, after running into the issue once, I couldn't reproduce the problem, so disabling for now since I can't test whether this helps or even hurts.
+	end)
 
-	 scrollbar:HookScript("OnHide", function(self)
-		 frameWarning:SetWidth(520)
-	 end)
+	scrollbar:HookScript("OnHide", function(self)
+		frameWarning:SetWidth(520)
+	end)
 
 
   tinsert(ACHIEVEMENTFRAME_SUBFRAMES, name)
@@ -802,12 +894,8 @@ function Overachiever.BuildNewTab(name, text, watermark, helptip, loadFunc, filt
   return frame, panel
 end
 
--- function Overachiever.OpenTab_frame(frame, makeSound)
-  -- tabOnClick(frame.tab, makeSound and "LeftButton" or nil)
--- end
-
-function Overachiever.OpenTab_frame(frame)
-  tabOnClick(frame.tab)
+function Overachiever.OpenTab_frame(frame, makeSound)
+  tabOnClick(frame.tab, makeSound and "LeftButton" or nil)
 end
 
 

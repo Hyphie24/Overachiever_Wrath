@@ -4,7 +4,7 @@
 --    by Tuhljin
 --
 
---Overachiever_Debug = true
+Overachiever_Debug = true
 
 local THIS_VERSION = GetAddOnMetadata("Overachiever", "Version")
 local THIS_TITLE = GetAddOnMetadata("Overachiever", "Title")
@@ -1652,8 +1652,8 @@ Overachiever.OpenToAchievement = openToAchievement;
 Overachiever.GetAllAchievements = getAllAchievements;
 --Overachiever.BuildCriteriaLookupTab = BuildCriteriaLookupTab;
 Overachiever.AddAchListToTooltip = AddAchListToTooltip;
- Overachiever.IsGuildAchievement = isGuildAchievement
- Overachiever.isUIInGuildView = isUIInGuildView
+-- Overachiever.IsGuildAchievement = isGuildAchievement
+-- Overachiever.isUIInGuildView = isUIInGuildView
 
 
 -- SLASH COMMANDS

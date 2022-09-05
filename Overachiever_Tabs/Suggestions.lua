@@ -2791,9 +2791,9 @@ local function getLocationSuggestions(retTab, zone, subzone, textoverride, insty
 
 		if (heroicD or heroicR) then
 			if (twentyfive) then
-				Refresh_Add(ACHID_INSTANCES_HEROIC[zone], ACHID_INSTANCES_HEROIC_PLUS[zone], ACHID_INSTANCES_25[zone], ACHID_INSTANCES_25_HEROIC[zone])
+				Refresh_Add(ACHID_INSTANCES_HEROIC[zone], ACHID_INSTANCES_25[zone], ACHID_INSTANCES_25_HEROIC[zone])
 			else
-				Refresh_Add(ACHID_INSTANCES_HEROIC[zone], ACHID_INSTANCES_HEROIC_PLUS[zone], ACHID_INSTANCES_10[zone], ACHID_INSTANCES_10_HEROIC[zone])
+				Refresh_Add(ACHID_INSTANCES_HEROIC[zone], ACHID_INSTANCES_10[zone], ACHID_INSTANCES_10_HEROIC[zone])
 			end
 		else
 			if (twentyfive) then
@@ -2803,10 +2803,10 @@ local function getLocationSuggestions(retTab, zone, subzone, textoverride, insty
 			end
 		end
 
-		if (mythicD or mythicR) then
-			Refresh_Add(ACHID_INSTANCES_MYTHIC[zone], ACHID_INSTANCES_HEROIC_PLUS[zone])
+		--if (mythicD or mythicR) then
+		--	Refresh_Add(ACHID_INSTANCES_MYTHIC[zone], ACHID_INSTANCES_HEROIC_PLUS[zone])
 			-- No need to check twentyfive; that's a legacy classification and the dungeons/raids with mythic-only achievements don't use it.
-		end
+		--end
 
 	else
 		Refresh_Add(Overachiever.ExploreZoneIDLookup(zone), ACHID_ZONE_NUMQUESTS[zone], ACHID_ZONE_MISC[zone])
@@ -2824,11 +2824,10 @@ local function getLocationSuggestions(retTab, zone, subzone, textoverride, insty
 			if (heroicR) then
 				if (twentyfive) then
 					Refresh_Add(ACHID_INSTANCES_HEROIC[subzone] or ACHID_INSTANCES_HEROIC[zone],
-					ACHID_INSTANCES_HEROIC_PLUS[subzone] or ACHID_INSTANCES_HEROIC_PLUS[zone],
+					
 					ach25, achH25)
 				else
 					Refresh_Add(ACHID_INSTANCES_HEROIC[subzone] or ACHID_INSTANCES_HEROIC[zone],
-					ACHID_INSTANCES_HEROIC_PLUS[subzone] or ACHID_INSTANCES_HEROIC_PLUS[zone],
 					ach10, achH10)
 				end
 			else
@@ -2840,16 +2839,15 @@ local function getLocationSuggestions(retTab, zone, subzone, textoverride, insty
 			end
 		-- Not a raid (or at least no 10-man vs 25-man specific suggestions):
 		elseif (heroicD) then
-			Refresh_Add(ACHID_INSTANCES_HEROIC[subzone] or ACHID_INSTANCES_HEROIC[zone],
-			ACHID_INSTANCES_HEROIC_PLUS[subzone] or ACHID_INSTANCES_HEROIC_PLUS[zone])
+			Refresh_Add(ACHID_INSTANCES_HEROIC[subzone] or ACHID_INSTANCES_HEROIC[zone])
 		else
 			Refresh_Add(ACHID_INSTANCES_NORMAL[subzone] or ACHID_INSTANCES_NORMAL[zone])
 		end
 
-		if (mythicD or mythicR) then
-			Refresh_Add(ACHID_INSTANCES_MYTHIC[subzone] or ACHID_INSTANCES_MYTHIC[zone],
-			ACHID_INSTANCES_HEROIC_PLUS[subzone] or ACHID_INSTANCES_HEROIC_PLUS[zone])
-		end
+		-- if (mythicD or mythicR) then
+			-- Refresh_Add(ACHID_INSTANCES_MYTHIC[subzone] or ACHID_INSTANCES_MYTHIC[zone],
+			-- ACHID_INSTANCES_HEROIC_PLUS[subzone] or ACHID_INSTANCES_HEROIC_PLUS[zone])
+		-- end
 	end
 
 	if (textoverride) then
@@ -3398,10 +3396,7 @@ diffdrop = TjDropDownMenu.CreateDropDown("Overachiever_SuggestionsFrameDiffDrop"
   {
     text = L.SUGGESTIONS_DIFFICULTY_HEROIC,
     value = 2
-  },
-  {
-    text = L.SUGGESTIONS_DIFFICULTY_MYTHIC,
-    value = 3
+
   };
 })
 diffdrop:SetLabel(L.SUGGESTIONS_DIFFICULTY, true)
