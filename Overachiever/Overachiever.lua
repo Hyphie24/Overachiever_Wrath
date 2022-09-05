@@ -4,7 +4,7 @@
 --    by Tuhljin
 --
 
-Overachiever_Debug = true
+--Overachiever_Debug = true
 
 local THIS_VERSION = GetAddOnMetadata("Overachiever", "Version")
 local THIS_TITLE = GetAddOnMetadata("Overachiever", "Title")
