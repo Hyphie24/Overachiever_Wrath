@@ -12,6 +12,7 @@ Will remove this if addon creator comes back and requests me to remove
 I do not own any rights to this, only to help out other Overachievers
 
 **9/4 UPDATE**
-Currently the only way to get the tabs to show up on achievement frame, will be working on trade part of addon shortly, if anyone finds the code to get the tabs to show please let me know, any help would do wonders
+Currently the only way to get the tabs to show up on achievement frame
+if anyone finds the code to get the tabs to show please let me know, any help would do wonders
 
 ![Current work around](https://i.ibb.co/261HspS/Workaround.png) 
