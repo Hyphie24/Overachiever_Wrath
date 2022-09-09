@@ -1,6 +1,6 @@
 **9/9/22 UPDATE**
-I will no longer be maintaining/updating Overachiever for Wrath classic or Retail
-With wrath classic the addon itself will not load on it's on and without rebuilding a lot of the code (a lot of time I currently do not have) I will have to step away
+I will no longer be maintaining/updating Overachiever for Wrath classic or Retail. 
+ With wrath classic the addon itself will not load on it's on and without rebuilding a lot of the code (a lot of time I currently do not have) I will have to step away
 However,
 Krowi, of [Krowi Achievement Filter](https://www.curseforge.com/wow/addons/krowi-achievement-filter), has been amazing enough to reach out and help keep and addon working similar to Overachiever (and is still making it better!)
 
