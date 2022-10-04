@@ -690,6 +690,7 @@ local function AchievementUI_OnShow_post()
     end
     --orig_AchievementFrame_area = nil
   end
+  _G.LoadAddOn("Overachiever_Tabs")
   CheckDraggable_AchFrame(nil, nil, nil, nil, true)
   --if (not Overachiever_Settings.DragSave_AchFrame) then
   if (Overachiever_Settings.Draggable_AchFrame and not Overachiever_Settings.DragSave_AchFrame) then
