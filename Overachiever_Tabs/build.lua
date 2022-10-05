@@ -69,12 +69,12 @@ local function delayedToggleView(self)
     return;
   end
   self:SetScript("OnUpdate", nil)
-  if (self.selection) then
-      elseif (self.guildView_default) then
-    if (not isUIInGuildView()) then  AchievementFrame_ToggleView();  end
- -- elseif () then
-   -- AchievementFrame_ToggleView()
-  end
+  -- if (self.selection) then
+      -- elseif (self.guildView_default) then
+    -- if (not isUIInGuildView()) then  AchievementFrame_ToggleView();  end
+  -- elseif () then
+    -- AchievementFrame_ToggleView()
+  -- end
 end
 
 local function clearSelection(frame)
