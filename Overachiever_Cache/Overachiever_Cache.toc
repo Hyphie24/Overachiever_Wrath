@@ -1,6 +1,6 @@
 ## Interface: 30400
 ## Title: Overachiever - Cache
-## Version: 1.26 Wrath
+## Version: 1.2.7 Wrath
 ## Original Author: Tuhljin
 ## Fan Fix Author: Hyphie
 ## Notes: Shorten load times and improve accuracy of cross-faction data.
